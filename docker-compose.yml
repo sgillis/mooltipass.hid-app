@@ -1,0 +1,5 @@
+dev:
+    build: .
+    command: make elm
+    volumes:
+        - .:/src
