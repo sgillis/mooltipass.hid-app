@@ -2,20 +2,20 @@ module DeveloperTab where
 
 -- Elm standard library
 import Graphics.Element as Element
-import Graphics.Element (..)
-import Graphics.Collage (..)
-import Signal (..)
+import Graphics.Element exposing (..)
+import Graphics.Collage exposing (..)
+import Signal exposing (..)
 import Signal
-import Text (..)
+import Text exposing (..)
 import String
 
 -- local source
 import Color
-import Layout (..)
-import CustomGraphics (..)
-import Actions (..)
-import CommonState (..)
-import GuiState (..)
+import Layout exposing (..)
+import CustomGraphics exposing (..)
+import Actions exposing (..)
+import CommonState exposing (..)
+import GuiState exposing (..)
 
 developerTab : (Int, Int) -> ImportInfo -> Element
 developerTab (w,h) t =
@@ -31,7 +31,7 @@ screen (w,h) t =
             [ widget (w, 64) t
             , container w 64 middle
                 <| bigButton
-                    (send guiActions (SetImportMedia Requested))
+                    (message guiActions.address (SetImportMedia Requested))
                     "import media"
             ]
 
@@ -39,9 +39,9 @@ infoText : ImportInfo -> Text
 infoText t = case t of
     ImportRequested id -> whiteText <| "importing " ++ fileName id
     Importing id _ _   -> whiteText <| "importing " ++ fileName id
-    Imported id        -> text <| "sucessfully imported " ++ fileName id
-    ImportError str    -> text <| "import error: " ++ str
-    _                  -> text <| ""
+    Imported id        -> CustomGraphics.text <| "sucessfully imported " ++ fileName id
+    ImportError str    -> CustomGraphics.text <| "import error: " ++ str
+    _                  -> CustomGraphics.text <| ""
 
 widget : (Int, Int) -> ImportInfo -> Element
 widget (w,h) t =

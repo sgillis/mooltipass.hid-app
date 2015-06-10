@@ -1,15 +1,15 @@
 module Scene where
 
 -- Elm standard library
-import Graphics.Input (..)
-import Graphics.Element (..)
-import Signal (..)
+import Graphics.Input exposing (..)
+import Graphics.Element exposing (..)
+import Signal exposing (..)
 
 -- local source
-import GuiState (..)
-import Navigation (..)
-import Layout (..)
-import Content (..)
+import GuiState exposing (..)
+import Navigation exposing (..)
+import Layout exposing (..)
+import Content exposing (..)
 
 {-| The scene maps the window dimensions and an application state to the main
     'Element'-}

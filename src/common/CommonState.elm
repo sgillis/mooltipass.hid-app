@@ -1,12 +1,12 @@
 module CommonState where
 
 -- Elm standard library
-import List (..)
+import List exposing (..)
 import String
 
 -- local source
-import Byte (..)
-import KeyboardLayout(..)
+import Byte exposing (..)
+import KeyboardLayout exposing (..)
 
 {-| The background state excluding gui components -}
 type alias CommonState =

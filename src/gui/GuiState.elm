@@ -2,20 +2,20 @@ module GuiState where
 
 -- Elm standard library
 import Dict
-import Dict (Dict)
-import List (..)
+import Dict exposing (Dict)
+import List exposing (..)
 import Maybe
 import Result
 import Graphics.Input.Field as Field
-import Graphics.Input.Field (Content, Selection)
+import Graphics.Input.Field exposing (Content, Selection)
 
 -- local source
 import CommonState as Common
-import CommonState (..)
-import Util (..)
-import Byte (..)
-import String (toInt)
-import DevicePacket (..)
+import CommonState exposing (..)
+import Util exposing (..)
+import Byte exposing (..)
+import String exposing (toInt)
+import DevicePacket exposing (..)
 
 type Tab = Log | Settings | Manage | Developer
 
@@ -176,7 +176,7 @@ update action s =
                             (Maybe.map MemInfoUnknownCardAdd (maybeHead (filter (\c -> c.cpz == cpz) d.cards)))
                 }
             _        -> errorTryingTo "add to memory"
-        
+
         StageParameter (p,b) ->
           {s | stageParameters <- Dict.insert (encodeParameter p) b s.stageParameters }
 
@@ -324,8 +324,8 @@ addCreds (service,logins) data =
          Nothing              -> Nothing
 
 switchFav f x zs = if | zs == []   -> [x]
-                   | x == (Just f) -> head zs::x::(tail zs)
-                   | otherwise     -> x::head zs::(tail zs)
+                   | x == (Just f) -> unsafeHead zs::x::(unsafeTail zs)
+                   | otherwise     -> x::unsafeHead zs::(unsafeTail zs)
 
 {-| Apply 'update' to a list of actions -}
 apply : List Action -> GuiState -> GuiState

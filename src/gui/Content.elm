@@ -2,19 +2,19 @@ module Content where
 
 -- Elm standard library
 import Color
-import Graphics.Collage (..)
-import Graphics.Element (..)
+import Graphics.Collage exposing (..)
+import Graphics.Element exposing (..)
 import Maybe
 
 -- local source
-import CustomGraphics (..)
-import Layout (..)
-import GuiState (..)
-import LogTab (..)
-import DeveloperTab (..)
-import ManageTab (..)
-import SettingsTab (..)
-import CommonState (..)
+import CustomGraphics exposing (..)
+import Layout exposing (..)
+import GuiState exposing (..)
+import LogTab exposing (..)
+import DeveloperTab exposing (..)
+import ManageTab exposing (..)
+import SettingsTab exposing (..)
+import CommonState exposing (..)
 
 {-| Renders the window the window dimensions and application state to the
     element that is below the tab navigation. -}

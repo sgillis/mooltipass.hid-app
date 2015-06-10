@@ -3,9 +3,9 @@ module ChromeMessage where
 import Maybe
 
 -- local source
-import GuiState (..)
-import CommonState (..)
-import Util (..)
+import GuiState exposing (..)
+import CommonState exposing (..)
+import Util exposing (..)
 
 type alias ToChromeMessage =
     { pickMediaFile : Maybe ()

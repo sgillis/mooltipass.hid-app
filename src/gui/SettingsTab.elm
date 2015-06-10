@@ -2,36 +2,35 @@ module SettingsTab where
 
 -- Elm standard library
 import Dict
-import Dict (Dict)
+import Dict exposing (Dict)
 import Graphics.Element as Element
-import Graphics.Element (..)
-import Graphics.Collage (..)
+import Graphics.Element exposing (..)
+import Graphics.Collage exposing (..)
 import Graphics.Input as Input
 import Graphics.Input.Field as Field
-import Graphics.Input.Field (defaultStyle, noContent, Content, Selection)
-import List (..)
+import Graphics.Input.Field exposing (defaultStyle, noContent, Content, Selection)
+import List exposing (..)
 import Color
-import String (toInt)
-import Text (..)
+import String exposing (toInt)
+import Text exposing (..)
 import Text
--- import Signal (channel, send, subscribe, Message)
-import Signal (..)
+import Signal exposing (..)
 import Maybe
 
 -- extra libraries
 import Html
-import Html (Html)
+import Html exposing (Html)
 import Html.Attributes
 
 -- local source
-import CommonState (..)
-import GuiState (..)
-import CustomGraphics (..)
-import Layout (..)
-import Actions (..)
-import Util (..)
-import Byte (..)
-import KeyboardLayout (..)
+import CommonState exposing (..)
+import GuiState exposing (..)
+import CustomGraphics exposing (..)
+import Layout exposing (..)
+import Actions exposing (..)
+import Util exposing (..)
+import Byte exposing (..)
+import KeyboardLayout exposing (..)
 
 settingsTab : (Int, Int) -> SettingsInfo -> Dict Int Selection -> Dict Int Byte -> Element
 settingsTab (w,h) settings selections stageParameters =
@@ -44,8 +43,8 @@ settingsTab (w,h) settings selections stageParameters =
 
 content : (Int, Int) -> SettingsInfo -> Dict Int Selection -> Element
 content (w,h) settings selections =
-    let resetButton = button (send guiActions ResetStageParameters) "reset"
-        saveButton = button (send guiActions SaveStageParameters) "save"
+    let resetButton = button (message guiActions.address ResetStageParameters) "reset"
+        saveButton = button (message guiActions.address SaveStageParameters) "save"
         content' = container w h midTop <| flow down
             [ -- cardSettings (w,120) ,
               mpSettings
@@ -307,7 +306,7 @@ sel w kString act things selected =
         ptxt'    = flow right
             -- [spacer 5 1, Input.dropDown (\x -> send guiActions NoOp) things]
             -- [spacer 5 1, Input.dropDown (send kbChannel) things]
-            [spacer 5 1, Input.dropDown act things selected]
+            [spacer 5 1, Input.dropDown act things]
         ptxt     = container pw lh midLeft ptxt'
         lh       = heights.settingsLogin
         lh'      = toFloat lh

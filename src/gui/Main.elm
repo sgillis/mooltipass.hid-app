@@ -1,8 +1,8 @@
 module GUI where
 -- Elm standard library
-import Graphics.Element (..)
-import Signal (..)
-import Time (..)
+import Graphics.Element exposing (..)
+import Signal exposing (..)
+import Time exposing (..)
 import Window
 import List
 import Maybe
@@ -10,16 +10,16 @@ import Maybe
 -- local source
 import Scene
 import ToGuiMessage
-import ToGuiMessage (..)
+import ToGuiMessage exposing (..)
 import FromGuiMessage
-import FromGuiMessage (..)
-import Actions (..)
-import GuiState (..)
-import ChromeMessage (..)
+import FromGuiMessage exposing (..)
+import Actions exposing (..)
+import GuiState exposing (..)
+import ChromeMessage exposing (..)
 import ChromeMessage
 import CommonState as Common
-import CommonState(MemInfo(..), CommonAction(..))
-import DevicePacket (..)
+import CommonState exposing (MemInfo(..), CommonAction(..))
+import DevicePacket exposing (..)
 
 {-| Any state updates from the background are received through this port -}
 port fromBackground : Signal ToGuiMessage
@@ -30,7 +30,7 @@ port toBackground : Signal FromGuiMessage
 port toBackground =
     merge
         (map (\(_,m,_,_) -> m) output)
-        (map FromGuiMessage.encode (subscribe commonActions))
+        (map FromGuiMessage.encode commonActions.signal)
 
 port toChrome : Signal ToChromeMessage
 port toChrome = map (\(m,_,_,_) -> m) output
@@ -103,7 +103,7 @@ forBg s =
                {s | saveParameters <- List.drop 1 s.saveParameters, setParameter <- saveParam})
         | doNeedParam -> (needGet, NoOp,
                {s | needParameters <- List.drop 1 s.needParameters, getParameter <- needParam})
- 
+
         | otherwise -> (e, NoOp, s)
 
 output : Signal (ToChromeMessage, FromGuiMessage, List Int, GuiState)
@@ -129,7 +129,7 @@ main = Scene.scene <~ Window.dimensions ~ state
 inputActions : Signal (List Action)
 inputActions = mergeMany
     [ map ((List.map CommonAction) << ToGuiMessage.decode) fromBackground
-    , map (\m -> [m]) (subscribe guiActions)
+    , map (\m -> [m]) guiActions.signal
     , map ((\m -> [m]) << ChromeMessage.decode) fromChrome
     , map ((\m -> [m]) << fromResult << fromInts) fromDevice
     ]

@@ -1,24 +1,24 @@
 module Background where
 
 -- Elm standard library
-import Signal (..)
-import Time (..)
-import List ((::))
+import Signal exposing (..)
+import Time exposing (..)
+import List exposing ((::))
 
 -- local source
 import ToGuiMessage
-import ToGuiMessage (ToGuiMessage)
+import ToGuiMessage exposing (ToGuiMessage)
 import FromGuiMessage
-import FromGuiMessage (FromGuiMessage)
-import CommonState (CommonAction)
-import DeviceMessage (..)
+import FromGuiMessage exposing (FromGuiMessage)
+import CommonState exposing (CommonAction)
+import DeviceMessage exposing (..)
 import DeviceMessage
-import BackgroundState (..)
-import ExtensionMessage (..)
+import BackgroundState exposing (..)
+import ExtensionMessage exposing (..)
 import ExtensionMessage
-import DevicePacket (..)
+import DevicePacket exposing (..)
 import ChromeBgMessage
-import ChromeBgMessage (..)
+import ChromeBgMessage exposing (..)
 
 port fromGUI : Signal FromGuiMessage
 

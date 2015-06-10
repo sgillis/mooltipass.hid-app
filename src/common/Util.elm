@@ -1,6 +1,6 @@
 module Util where
 
-import List (..)
+import List exposing (..)
 
 pairToList : (a,a) -> List a
 pairToList (x,y) = [x,y]
@@ -23,6 +23,15 @@ maybeHead : List a -> Maybe a
 maybeHead xs = case xs of
     (x::_) -> Just x
     _      -> Nothing
+
+unsafeHead : List a -> a
+unsafeHead xs = case xs of
+    (x::_) -> x
+
+unsafeTail : List a -> List a
+unsafeTail xs = case xs of
+    (x::xs') -> xs'
+    []      -> []
 
 justs : List (Maybe a) -> List a
 justs = filterMap identity

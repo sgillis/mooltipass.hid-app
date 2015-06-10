@@ -1,18 +1,18 @@
 module DeviceFlash where
 
-import List (..)
-import Maybe (andThen, Maybe(..))
+import List exposing (..)
+import Maybe exposing (andThen, Maybe(..))
 import Maybe
-import Result (fromMaybe, Result(..))
+import Result exposing (fromMaybe, Result(..))
 import Result
-import Bitwise (..)
+import Bitwise exposing (..)
 import String
 
 -- local source
-import Byte (..)
-import DevicePacket (..)
-import CommonState (..)
-import Util (..)
+import Byte exposing (..)
+import DevicePacket exposing (..)
+import CommonState exposing (..)
+import Util exposing (..)
 
 nodeSize = 132
 

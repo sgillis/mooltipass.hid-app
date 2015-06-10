@@ -2,19 +2,19 @@ module LogTab where
 
 -- Elm standard library
 import Color
-import Graphics.Collage (..)
-import Graphics.Element (..)
-import Signal (..)
+import Graphics.Collage exposing (..)
+import Graphics.Element exposing (..)
+import Signal exposing (..)
 import Html
 import Html.Attributes
 import Text -- needed even when unused because of Elm bug #864
 import List
 
 -- local source
-import Layout (..)
-import CommonState (..)
-import CustomGraphics (..)
-import Actions (..)
+import Layout exposing (..)
+import CommonState exposing (..)
+import CustomGraphics exposing (..)
+import Actions exposing (..)
 
 {-| Displays the log in a screen with a clear button at the bottom in
     a 'toolbar'. -}
@@ -52,4 +52,4 @@ screen (w,h) log =
 
 {-| A button that says 'clear' and clears the log -}
 clearButton : Element
-clearButton = button (send commonActions (SetLog [])) "clear"
+clearButton = button (message commonActions.address (SetLog [])) "clear"

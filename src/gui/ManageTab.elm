@@ -2,29 +2,29 @@ module ManageTab where
 
 -- Elm standard library
 import Graphics.Element as Element
-import Graphics.Element (..)
-import Graphics.Collage (..)
+import Graphics.Element exposing (..)
+import Graphics.Collage exposing (..)
 import Graphics.Input as Input
-import List (..)
+import List exposing (..)
 import Color
-import Text (..)
+import Text exposing (..)
 import Text
-import Signal (send)
+import Signal exposing (message)
 import Maybe
 
 -- extra libraries
 import Html
-import Html (Html)
+import Html exposing (Html)
 import Html.Attributes
 
 -- local source
-import CommonState (..)
-import GuiState (..)
-import CustomGraphics (..)
-import Layout (..)
-import Actions (..)
-import Util (..)
-import Byte (..)
+import CommonState exposing (..)
+import GuiState exposing (..)
+import CustomGraphics exposing (..)
+import Layout exposing (..)
+import Actions exposing (..)
+import Util exposing (..)
+import Byte exposing (..)
 
 manageTab : (Int, Int) -> GuiState -> Element
 manageTab (w,h) s =
@@ -36,9 +36,9 @@ manageTab (w,h) s =
 
 content : (Int, Int) -> GuiState -> Element
 content (w,h) s =
-    let exitButton       = button (send commonActions EndMemManage) "exit"
-        exportButton     = button (send guiActions (SetWriteMem True)) "export"
-        importButton     = button (send guiActions (SetReadMem True)) "import"
+    let exitButton       = button (message commonActions.address EndMemManage) "exit"
+        exportButton     = button (message guiActions.address (SetWriteMem True)) "export"
+        importButton     = button (message guiActions.address (SetReadMem True)) "import"
         info = s.unsavedMemInfo
         --iii = Debug.log "info" info
         showMem infodata = container w h midTop <| flow down
@@ -55,7 +55,7 @@ content (w,h) s =
             , container w (heights.button + 4) middle
                 <| flow right [importButton, spacer 16 1, exportButton, spacer 32 1, exitButton, spacer 16 1, saveButton info]
             ]
-        reEnterButton = button (send commonActions StartMemManage) "re-enter"
+        reEnterButton = button (message commonActions.address StartMemManage) "re-enter"
         modeExited    = leftAligned <| whiteText "memory management mode exited"
         reEnter       =
             flow down [ modeExited
@@ -70,7 +70,7 @@ content (w,h) s =
             <| whiteText "please accept memory management mode on the device"
         working = leftAligned
             <| whiteText "working..."
-        addCardButton = bigButton (send guiActions (SetReadMem True)) "select file"
+        addCardButton = bigButton (message guiActions.address (SetReadMem True)) "select file"
         cardText      = width (w - 64) <| centered <| whiteText <| case s.unsavedMemInfo of
             MemInfoUnknownCardError _ -> "the unknown card is not in the user data you selected, please select a different file or insert a different card"
             _ -> "unknown card present, please select a user data file to add this card to user"
@@ -95,7 +95,7 @@ content (w,h) s =
 saveButton : MemInfo -> Element
 saveButton info =
     case info of
-        (MemInfo d) -> button (send commonActions (SaveMemManage d) ) "save"
+        (MemInfo d) -> button (message commonActions.address (SaveMemManage d) ) "save"
 
 favorites : Int -> MemInfoData -> Element
 favorites w info =
@@ -153,7 +153,7 @@ favorite w (n,maybeF) =
         sp       = spacer spw 1
         spw      = 2
         upIcon     = Input.customButton
-            (send guiActions (MoveFavUp (saddr, laddr))) iUpUp iUpHover iUpDown
+            (message guiActions.address (MoveFavUp (saddr, laddr))) iUpUp iUpHover iUpDown
         iUpUp      = layers [iUpBg lightGrey' , upIcon']
         iUpHover   = layers [iUpBg lightGrey'', upIcon']
         iUpDown    = layers [iUpBg lightGrey'', upIcon']
@@ -162,7 +162,7 @@ favorite w (n,maybeF) =
         iUpBg  c  = collage iw fh
             [rect iw' fh' |> filled c]
         downIcon     = Input.customButton
-            (send guiActions (MoveFavDown (saddr, laddr))) iDownUp iDownHover iDownDown
+            (message guiActions.address (MoveFavDown (saddr, laddr))) iDownUp iDownHover iDownDown
         iDownUp      = layers [iDownBg lightGrey' , downIcon']
         iDownHover   = layers [iDownBg lightGrey'', downIcon']
         iDownDown    = layers [iDownBg lightGrey'', downIcon']
@@ -278,7 +278,7 @@ login w ((serviceString,saddr),(loginString,laddr)) fav =
         lh       = heights.manageLogin
         lh'      = toFloat lh
         delIcon     = Input.customButton
-            (send guiActions (RemoveCred (saddr,laddr))) iDelUp iDelHover iDelDown
+            (message guiActions.address (RemoveCred (saddr,laddr))) iDelUp iDelHover iDelDown
         iDelUp      = layers [iDelBg lightGrey' , delIcon']
         iDelHover   = layers [iDelBg lightGrey'', delIcon']
         iDelDown    = layers [iDelBg lightGrey'', delIcon']
@@ -309,7 +309,7 @@ favIcon isFav credential =
         iw       = 32
         iw'      = toFloat iw
     in Input.customButton
-        (send guiActions
+        (message guiActions.address
             (if isFav then RemoveFav credential else AddFav credential))
         (iFavUp isFav)
         (iFavHover isFav)

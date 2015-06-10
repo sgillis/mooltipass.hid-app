@@ -2,29 +2,29 @@ module Actions where
 
 -- Elm standard library
 import List
-import Graphics.Input.Field (Content)
-import Signal (..)
+import Graphics.Input.Field exposing (Content)
+import Signal exposing (..)
 
-import Byte (..)
-import String (toInt)
-import CommonState (..)
-import GuiState (..)
+import Byte exposing (..)
+import String exposing (toInt)
+import CommonState exposing (..)
+import GuiState exposing (..)
 
 {-| The channel that user inputs can 'Signal.send' actions to that affect the
     GUI directly -}
-guiActions : Channel Action
-guiActions = channel NoOp
+guiActions : Mailbox Action
+guiActions = mailbox NoOp
 
 {-| The channel that user inputs can 'Signal.send' actions to that affect the common state with the background. These are sent to the background first before they bubble back up to the 'GuiState'. -}
-commonActions : Channel CommonAction
-commonActions = channel CommonNoOp
+commonActions : Mailbox CommonAction
+commonActions = mailbox CommonNoOp
 
 sendGetParameter : Parameter -> Message
-sendGetParameter p = send guiActions (CommonAction (GetParameter (Just p)))
+sendGetParameter p = message guiActions.address (CommonAction (GetParameter (Just p)))
 
 {-
 sendParameter : Parameter -> Byte -> Message
-sendParameter p b = send guiActions (CommonAction (SetParameter (Just (p, b))))
+sendParameter p b =  guiActions (CommonAction (SetParameter (Just (p, b))))
 
 sendIntContent : Parameter -> Int -> Int -> Content -> Message
 sendIntContent p lo hi content = send guiActions (SetParameterField p lo hi content)
@@ -44,15 +44,15 @@ setKeyboard kb = sendParameter KeyboardLayout kb
 -}
 
 stageParameter : Parameter -> Byte -> Message
-stageParameter p b = send guiActions (StageParameter (p, b))
+stageParameter p b = message guiActions.address (StageParameter (p, b))
 
 stageIntContent : Parameter -> Int -> Int -> Content -> Message
-stageIntContent p lo hi content = send guiActions (StageParameterField p lo hi content)
+stageIntContent p lo hi content = message guiActions.address (StageParameterField p lo hi content)
 
 stageParseInt : Parameter -> String -> Message
 stageParseInt p s = case toInt s of
   Ok i -> stageParameter p i
-  _    -> send guiActions NoOp
+  _    -> message guiActions.address NoOp
 
 stageBool : Parameter -> Bool -> Message
 stageBool p b = case b of

@@ -4,12 +4,12 @@ module ExtensionMessage where
 import Maybe
 
 -- local source
-import BackgroundState (..)
+import BackgroundState exposing (..)
 import CommonState as Common
-import CommonState (..)
-import Byte (..)
-import Result (..)
-import Util (..)
+import CommonState exposing (..)
+import Byte exposing (..)
+import Result exposing (..)
+import Util exposing (..)
 
 type alias FromExtensionMessage =
     { ping      : Maybe ()

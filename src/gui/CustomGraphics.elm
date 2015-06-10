@@ -1,16 +1,16 @@
 module CustomGraphics where
 -- Elm standard library
 import List
-import Graphics.Collage (..)
-import Graphics.Element (..)
+import Graphics.Collage exposing (..)
+import Graphics.Element exposing (..)
 import Graphics.Element as Element
-import Graphics.Input (..)
-import Text (..)
+import Graphics.Input exposing (..)
+import Text exposing (..)
 import Text
 import Color
 import Signal
 
-import Layout (..)
+import Layout exposing (..)
 
 {-| An elliptical arc with the given center, radii and angle interval. -}
 arc : (Float, Float) -> (Float, Float) -> (Float, Float) -> Shape

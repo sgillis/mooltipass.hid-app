@@ -3,8 +3,8 @@ module ToGuiMessage where
 import Maybe
 
 -- local source
-import Byte (..)
-import CommonState (..)
+import Byte exposing (..)
+import CommonState exposing (..)
 
 type alias ToGuiMessage = { setLog          : (List String)
                           , setDeviceStatus : Int

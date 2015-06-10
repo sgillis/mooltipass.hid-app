@@ -4,8 +4,8 @@ module FromGuiMessage where
 import Maybe
 
 -- local source
-import Byte (..)
-import CommonState (..)
+import Byte exposing (..)
+import CommonState exposing (..)
 
 type alias FromGuiMessage =
     { setLog           : Maybe (List String)

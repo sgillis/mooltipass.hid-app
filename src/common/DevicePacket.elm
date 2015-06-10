@@ -1,18 +1,18 @@
 module DevicePacket where
 
 -- Elm standard library
-import Result (..)
+import Result exposing (..)
 import Result
 import List
-import List (..)
+import List exposing (..)
 import Maybe
 import String
 import Char
-import Bitwise (and)
+import Bitwise exposing (and)
 
 -- local source
-import Byte (..)
-import CommonState (..)
+import Byte exposing (..)
+import CommonState exposing (..)
 
 cmd_EXPORT_FLASH_START  = 0x8A
 cmd_EXPORT_FLASH        = 0x8B
@@ -299,20 +299,20 @@ fromInts ls = case ls of
                 if size /= 1
                 then Err <| "Invalid data size for '" ++ name ++ "'"
                 else case List.head payload of
-                        0x00 -> Ok <| constructor NotDone
-                        0x01 -> Ok <| constructor Done
-                        _    -> Err <| "Invalid data for '" ++ name ++ "'"
+                        Just 0x00 -> Ok <| constructor NotDone
+                        Just 0x01 -> Ok <| constructor Done
+                        _         -> Err <| "Invalid data for '" ++ name ++ "'"
             maybeByteString constructor name =
                 if size <= 0
                 then Err <| "Zero data returned for '" ++ name ++ "'"
-                else if size == 1 && List.head payload == 0x00
+                else if size == 1 && List.head payload == Just 0x00
                      then Ok <| constructor Maybe.Nothing
                      else Result.map (constructor << Maybe.Just)
                             (toByteString size payload)
             maybeByteStringNull constructor name =
                 if size <= 0
                 then Err <| "Zero data returned for '" ++ name ++ "'"
-                else if size == 1 && List.head payload == 0x00
+                else if size == 1 && List.head payload == Just 0x00
                      then Ok <| constructor Maybe.Nothing
                      else Result.map (constructor << Maybe.Just)
                             (toByteString (size - 1) payload)
@@ -326,18 +326,18 @@ fromInts ls = case ls of
                     | m == cmd_VERSION ->
                         let flashSize =
                                 Result.map (\b -> {flashMemSize = b})
-                                    <| toByte (List.head payload)
+                                    <| toByte (Maybe.withDefault 0 <| List.head payload)
                             mpVersion mpv =
                                 Result.map (\s -> {mpv | version = s})
                                 -- (size - 2) because of null-termination
-                                    <| toByteString (size - 2) (List.tail payload)
+                                    <| toByteString (size - 2) (Maybe.withDefault [] <| List.tail payload)
                         in Result.map ReceivedGetVersion (flashSize `andThen` mpVersion)
                     | m == cmd_CONTEXT -> if size /= 1
                             then Err "Invalid data size for 'set context'"
                             else case List.head payload of
-                                    0x00 -> Ok <| ReceivedSetContext UnknownContext
-                                    0x01 -> Ok <| ReceivedSetContext ContextSet
-                                    0x03 -> Ok <| ReceivedSetContext NoCardForContext
+                                    Just 0x00 -> Ok <| ReceivedSetContext UnknownContext
+                                    Just 0x01 -> Ok <| ReceivedSetContext ContextSet
+                                    Just 0x03 -> Ok <| ReceivedSetContext NoCardForContext
                                     _    -> Err "Invalid data for 'set context'"
                     | m == cmd_GET_LOGIN    -> maybeByteStringNull ReceivedGetLogin    "get login"
                     | m == cmd_GET_PASSWORD -> maybeByteStringNull ReceivedGetPassword "get password"
@@ -346,9 +346,9 @@ fromInts ls = case ls of
                     | m == cmd_CHECK_PASSWORD -> if size /= 1
                             then Err "Invalid data size for 'check password'"
                             else case List.head payload of
-                                0x00 -> Ok <| ReceivedCheckPassword Incorrect
-                                0x01 -> Ok <| ReceivedCheckPassword Correct
-                                0x02 -> Ok <| ReceivedCheckPassword RequestBlocked
+                                Just 0x00 -> Ok <| ReceivedCheckPassword Incorrect
+                                Just 0x01 -> Ok <| ReceivedCheckPassword Correct
+                                Just 0x02 -> Ok <| ReceivedCheckPassword RequestBlocked
                                 _    -> Err "Invalid data for 'check password'"
                     | m == cmd_ADD_CONTEXT         -> doneOrNotDone ReceivedAddContext "add context"
                     | m == cmd_EXPORT_FLASH        -> Result.map ReceivedExportFlash (toByteString size payload)

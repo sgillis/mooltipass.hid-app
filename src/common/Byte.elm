@@ -8,7 +8,7 @@ import Result
 
 
 -- local source
-import Util (..)
+import Util exposing (..)
 
 {-| A byte is just an Int really. -}
 type alias Byte = Int

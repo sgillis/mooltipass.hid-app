@@ -3,10 +3,10 @@ module ChromeBgMessage where
 -- Elm standard library
 import List
 -- local source
-import BackgroundState (..)
-import CommonState (..)
-import Byte (..)
-import DevicePacket (..)
+import BackgroundState exposing (..)
+import CommonState exposing (..)
+import Byte exposing (..)
+import DevicePacket exposing (..)
 
 type alias ToChromeMessage = {readFile : Maybe String}
 

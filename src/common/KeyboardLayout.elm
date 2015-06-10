@@ -4,7 +4,7 @@ import List
 import Maybe
 
 defaultKeyboard : Int
-defaultKeyboard = snd (List.head allKeyboards)
+defaultKeyboard = 0x92
 
 allKeyboards : List (String, Int)
 allKeyboards =

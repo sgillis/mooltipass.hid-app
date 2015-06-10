@@ -2,14 +2,14 @@ module BackgroundState where
 
 -- Elm standard library
 import Maybe
-import List (..)
+import List exposing (..)
 
 -- local source
 import CommonState as Common
-import CommonState (..)
-import DevicePacket (..)
-import DeviceFlash (..)
-import Byte (..)
+import CommonState exposing (..)
+import DevicePacket exposing (..)
+import DeviceFlash exposing (..)
+import Byte exposing (..)
 
 type alias BackgroundState = { deviceConnected  : Bool
                              , deviceVersion    : Maybe MpVersion
@@ -440,8 +440,8 @@ interpret packet s =
             MemManageReadFreeSlotsWaiting (p,f,slots) -> case slots of
                         [] -> setMemManage (MemManageReadFreeSlots (p,f,addrs)) s
                         _ -> if length slots > 1000 || isEmpty addrs
-                             then setMemManage (MemManageReadCtr (p,f,slots ++ (tail addrs))) s
-                             else setMemManage (MemManageReadFreeSlots (p,f,slots ++ (tail addrs))) s
+                             then setMemManage (MemManageReadCtr (p,f,slots ++ (Maybe.withDefault [] <| tail addrs))) s
+                             else setMemManage (MemManageReadFreeSlots (p,f,slots ++ (Maybe.withDefault [] <| tail addrs))) s
             _ -> setMemManage (MemManageError (unexpected "free slots")) s
         ReceivedGetCtrValue ctr -> case s.memoryManage of
             MemManageReadCtrWaiting (p,f,a) -> setMemManage (MemManageReadCards (p,f,a,ctr)) s
@@ -482,7 +482,7 @@ interpret packet s =
             case s.bgGetParameter of
               []      -> s
               (p::ps) ->
-                let b = head (stringToInts x)
+                let b = Maybe.withDefault 0 <| head (stringToInts x)
                     c = s.common
                     common' = { c | settingsInfo <- updateSettingsInfo p b s.common.settingsInfo }
                 in {s | bgGetParameter <- ps, common <- common' }

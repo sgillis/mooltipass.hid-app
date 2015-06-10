@@ -2,17 +2,17 @@ module DeviceMessage where
 
 -- Elm standard library
 import Maybe
-import List (..)
-import Bitwise(and)
+import List exposing (..)
+import Bitwise exposing (and)
 
 -- local source
-import CommonState (..)
+import CommonState exposing (..)
 import CommonState as Common
-import BackgroundState (..)
-import DevicePacket (..)
-import DeviceFlash (..)
-import Util (..)
-import Byte (..)
+import BackgroundState exposing (..)
+import DevicePacket exposing (..)
+import DeviceFlash exposing (..)
+import Util exposing (..)
+import Byte exposing (..)
 
 type alias FromDeviceMessage = { setHidConnected : Maybe Bool
                                , receiveCommand  : Maybe (List Int)
