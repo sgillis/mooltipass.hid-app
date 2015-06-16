@@ -231,9 +231,12 @@ update action s =
                {s | deviceConnected <-  False}
             else {s | deviceConnected <- True}
         SetExtAwaitingPing b -> {s | extAwaitingPing <- b}
-        SetExtRequest d -> if s.blockSetExtRequest
-                           then appendToLog "Blocking SetExtRequest" s
-                           else setBlockSetExtRequest True {s | extRequest <- d}
+        SetExtRequest d -> case d of
+            ExtWantsToWrite c ->
+                if s.blockSetExtRequest
+                then appendToLog "Blocking SetExtRequest" s
+                else setBlockSetExtRequest True {s | extRequest <- d}
+            _ -> {s | extRequest <- d}
         SetMediaImport t -> setMedia t s
         SetWaitingForDevice b -> {s | waitingForDevice <- b}
         SetMemManage m -> setMemManage m s
@@ -299,15 +302,15 @@ interpret packet s =
                 case s.extRequest of
                 ExtNeedsLogin c ->
                     setExtRequest (ExtNeedsPassword {c | login = l})
-                _ -> unblock <| setExtRequest NoRequest
-            Nothing -> unblock <| setExtRequest ExtNoCredentials
+                _ -> setExtRequest NoRequest
+            Nothing -> setExtRequest ExtNoCredentials
         ReceivedGetPassword mp -> case mp of
             Just p ->
                 case s.extRequest of
                 ExtNeedsPassword c ->
                     setExtRequest (ExtCredentials {c | password = p})
-                _ -> unblock <| setExtRequest NoRequest
-            Nothing -> unblock <| setExtRequest ExtNoCredentials
+                _ -> setExtRequest NoRequest
+            Nothing -> setExtRequest ExtNoCredentials
         ReceivedSetLogin r ->
             case s.extRequest of
                  ExtWantsToWrite c ->
@@ -336,193 +339,175 @@ interpret packet s =
                         {s | currentContext <- c.context}
                     -- this fall-through would be: we have no idea what
                     -- context we set so we just keep the original state
-                    _ -> unblock s
+                    _ -> s
                 UnknownContext -> case s.extRequest of
                     ExtWantsToWrite c ->
                         {s | extRequest <- ExtNeedsNewContext c}
                     ExtWantsCredentials _ ->
-                        unblock <| {s | extRequest <- ExtNoCredentials}
+                        {s | extRequest <- ExtNoCredentials}
                     ExtNeedsPassword _ ->
-                        unblock <| {s | extRequest <- ExtNoCredentials}
+                        {s | extRequest <- ExtNoCredentials}
                     ExtNeedsToWritePassword _ ->
-                        unblock {s | extRequest <- ExtNotWritten}
-                    _ -> unblock <| s
+                        {s | extRequest <- ExtNotWritten}
+                    _ -> s
                 NoCardForContext ->
-                    unblock <| update (CommonAction (SetDeviceStatus NoCard)) s
+                    update (CommonAction (SetDeviceStatus NoCard)) s
         ReceivedAddContext r ->
             case s.extRequest of
                  ExtNeedsNewContext c ->
                      if r == Done
                      then setExtRequest (ExtWantsToWrite c)
-                     else unblock <| setExtRequest ExtNotWritten
-                 _ -> unblock <| setExtRequest NoRequest
+                     else setExtRequest ExtNotWritten
+                 _ -> setExtRequest NoRequest
         ReceivedGetVersion v ->
                 appendToLog
                     ("device is "
                         ++ v.version ++ " "
                         ++ toString v.flashMemSize
                         ++ "MBit")
-                (unblock {s | deviceVersion <- Just v})
+                {s | deviceVersion <- Just v}
         ReceivedImportMediaStart r ->
-            let s' = unblock s
-            in case s.mediaImport of
+            case s.mediaImport of
                 MediaImportStartWaiting ps ->
                     if r == Done
-                    then setMedia (MediaImport ps) s'
-                    else setMedia (MediaImportError "Import start failed") s'
-                _ -> setMedia (MediaImportError (unexpected "ImportMediaStart")) s'
+                    then setMedia (MediaImport ps) s
+                    else setMedia (MediaImportError "Import start failed") s
+                _ -> setMedia (MediaImportError (unexpected "ImportMediaStart")) s
         ReceivedImportMedia r ->
-            let s' = unblock s
-            in case s.mediaImport of
+            case s.mediaImport of
                 MediaImportWaiting (p::ps) ->
                     if r == Done
-                    then setMedia (MediaImport ps) s'
-                    else setMedia (MediaImportError "Import write failed") s'
-                _ -> setMedia (MediaImportError (unexpected "ImportMedia")) s'
+                    then setMedia (MediaImport ps) s
+                    else setMedia (MediaImportError "Import write failed") s
+                _ -> setMedia (MediaImportError (unexpected "ImportMedia")) s
         ReceivedImportMediaEnd r ->
-            let s' = unblock s
-            in case s.mediaImport of
+            case s.mediaImport of
                 MediaImportWaiting [] ->
                     if r == Done
-                    then setMedia MediaImportSuccess s'
-                    else setMedia (MediaImportError "Import end-write failed") s'
-                _ -> setMedia (MediaImportError (unexpected "ImportMediaEnd")) s'
+                    then setMedia MediaImportSuccess s
+                    else setMedia (MediaImportError "Import end-write failed") s
+                _ -> setMedia (MediaImportError (unexpected "ImportMediaEnd")) s
         ReceivedManageModeStart r ->
-            let s' = unblock s
-            in if r == Done
+            if r == Done
             then setMemManage (MemManageRead ([], nullAddress, nullAddress) [])
-                    (update (CommonAction (SetDeviceStatus ManageMode)) s')
+                    (update (CommonAction (SetDeviceStatus ManageMode)) s)
             else setMemManage MemManageDenied
-                    (update (CommonAction (SetDeviceStatus Unlocked)) s')
+                    (update (CommonAction (SetDeviceStatus Unlocked)) s)
         ReceivedGetStartingParent a ->
-            let s' = unblock s
-            in case s.memoryManage of
+            case s.memoryManage of
             MemManageReadWaiting ([],nullAddress,nullAddress) [] ->
                 if a /= nullAddress then
-                    setMemManage (MemManageRead ([], a, nullAddress) []) s'
+                    setMemManage (MemManageRead ([], a, nullAddress) []) s
                 else
-                    setMemManage (MemManageReadFreeSlots ([], emptyFavorites, [])) s'
-            _ -> setMemManage (MemManageError (unexpected "starting parent")) s'
+                    setMemManage (MemManageReadFreeSlots ([], emptyFavorites, [])) s
+            _ -> setMemManage (MemManageError (unexpected "starting parent")) s
         ReceivedReadFlashNode ba ->
-            let s' = unblock s
-            in case s.memoryManage of
+            case s.memoryManage of
                 MemManageReadWaiting d prevBa ->
                     if length (prevBa ++ ba) == nodeSize
                         then case parse d (prevBa ++ ba) of
-                            Ok d'  -> setMemManage (MemManageRead d' []) s'
-                            Err err -> setMemManage (MemManageError err) s'
-                        else setMemManage (MemManageReadWaiting d (prevBa ++ ba)) s'
-                _ -> setMemManage (MemManageError (unexpected "flash node")) s'
+                            Ok d'  -> setMemManage (MemManageRead d' []) s
+                            Err err -> setMemManage (MemManageError err) s
+                        else setMemManage (MemManageReadWaiting d (prevBa ++ ba)) s
+                _ -> setMemManage (MemManageError (unexpected "flash node")) s
         ReceivedGetFavorite (p,c) ->
-            let s' = unblock s
-            in case s.memoryManage of
+            case s.memoryManage of
                 MemManageReadFavWaiting (n,ffavs) ->
                     let ffavs' = ({parentNode = p, childNode = c})::ffavs
                     in if length ffavs' == maxFavs then
-                          setMemManage (MemManageReadFreeSlots (n, toFavs ffavs' n, [])) s'
+                          setMemManage (MemManageReadFreeSlots (n, toFavs ffavs' n, [])) s
                        else
-                          setMemManage (MemManageReadFav (n, ffavs')) s'
-                _ -> setMemManage (MemManageError (unexpected "favorite")) s'
+                          setMemManage (MemManageReadFav (n, ffavs')) s
+                _ -> setMemManage (MemManageError (unexpected "favorite")) s
         ReceivedManageModeEnd r ->
-            let s' = unblock s
-            in if r == Done
-            then update (CommonAction (SetDeviceStatus Unlocked)) s'
-            else setMemManage (MemManageError "device did not exit mem-manage when asked") s'
+            if r == Done
+            then update (CommonAction (SetDeviceStatus Unlocked)) s
+            else setMemManage (MemManageError "device did not exit mem-manage when asked") s
         ReceivedSetFavorite r ->
-            let s' = unblock s
-            in case s.memoryManage of
+            case s.memoryManage of
             MemManageWriteWaiting (p::ps) ->
                 if r == Done
-                then setMemManage (MemManageWrite ps) s'
-                else setMemManage (MemManageError "write favorite denied") s'
+                then setMemManage (MemManageWrite ps) s
+                else setMemManage (MemManageError "write favorite denied") s
             MemManageWriteWaiting [] ->
                 if r == Done
-                then setMemManage (MemManageRead ([], nullAddress, nullAddress) []) s'
-                else setMemManage (MemManageError "write favorite denied") s'
-            _ -> setMemManage (MemManageError (unexpected "set favorite")) s'
+                then setMemManage (MemManageRead ([], nullAddress, nullAddress) []) s
+                else setMemManage (MemManageError "write favorite denied") s
+            _ -> setMemManage (MemManageError (unexpected "set favorite")) s
         ReceivedWriteFlashNode r ->
-            let s' = unblock s
-            in case s.memoryManage of
+            case s.memoryManage of
             MemManageWriteWaiting (p::ps) ->
                 if r == Done
-                then setMemManage (MemManageWrite ps) s'
-                else setMemManage (MemManageError "write node denied") s'
-            _ -> setMemManage (MemManageError (unexpected "write node")) s'
+                then setMemManage (MemManageWrite ps) s
+                else setMemManage (MemManageError "write node denied") s
+            _ -> setMemManage (MemManageError (unexpected "write node")) s
         ReceivedSetStartingParent r ->
-            let s' = unblock s
-            in case s.memoryManage of
+            case s.memoryManage of
             MemManageWriteWaiting (p::ps) ->
                 if r == Done
-                then setMemManage (MemManageWrite ps) s'
-                else setMemManage (MemManageError "set starting parent denied") s'
-            _ -> setMemManage (MemManageError (unexpected "set starting parent")) s'
+                then setMemManage (MemManageWrite ps) s
+                else setMemManage (MemManageError "set starting parent denied") s
+            _ -> setMemManage (MemManageError (unexpected "set starting parent")) s
         ReceivedGetFreeSlots addrs ->
-            let s' = unblock s
-            in case s.memoryManage of
+            case s.memoryManage of
             MemManageReadFreeSlotsWaiting (p,f,slots) -> case slots of
-                        [] -> setMemManage (MemManageReadFreeSlots (p,f,addrs)) s'
+                        [] -> setMemManage (MemManageReadFreeSlots (p,f,addrs)) s
                         _ -> if length slots > 1000 || isEmpty addrs
-                             then setMemManage (MemManageReadCtr (p,f,slots ++ (Maybe.withDefault [] <| tail addrs))) s'
-                             else setMemManage (MemManageReadFreeSlots (p,f,slots ++ (Maybe.withDefault [] <| tail addrs))) s'
-            _ -> setMemManage (MemManageError (unexpected "free slots")) s'
+                             then setMemManage (MemManageReadCtr (p,f,slots ++ (Maybe.withDefault [] <| tail addrs))) s
+                             else setMemManage (MemManageReadFreeSlots (p,f,slots ++ (Maybe.withDefault [] <| tail addrs))) s
+            _ -> setMemManage (MemManageError (unexpected "free slots")) s
         ReceivedGetCtrValue ctr ->
-            let s' = unblock s
-            in case s.memoryManage of
-            MemManageReadCtrWaiting (p,f,a) -> setMemManage (MemManageReadCards (p,f,a,ctr)) s'
-            _ -> setMemManage (MemManageError (unexpected "get ctr value")) s'
+            case s.memoryManage of
+            MemManageReadCtrWaiting (p,f,a) -> setMemManage (MemManageReadCards (p,f,a,ctr)) s
+            _ -> setMemManage (MemManageError (unexpected "get ctr value")) s
         ReceivedCpzCtrPacketExport card ->
-            let s' = unblock s
-            in case s.memoryManage of
-            MemManageReadCardsWaiting (p,f,a,c,cards) -> setMemManage (MemManageReadCardsWaiting (p,f,a,c, card::cards)) s'
-            _ -> setMemManage (MemManageError (unexpected "cpz ctr packet export")) s'
+            case s.memoryManage of
+            MemManageReadCardsWaiting (p,f,a,c,cards) -> setMemManage (MemManageReadCardsWaiting (p,f,a,c, card::cards)) s
+            _ -> setMemManage (MemManageError (unexpected "cpz ctr packet export")) s
         ReceivedGetCpzCtrValues r ->
-            let s' = unblock s
-            in case s.memoryManage of
+            case s.memoryManage of
             MemManageReadCardsWaiting d ->
                 if r == Done
-                then setMemManage (MemManageReadCpz d) s'
-                else setMemManage (MemManageError "reading user cards (cpz & ctr values) denied") s'
-            _ -> setMemManage (MemManageError (unexpected "cpz ctr packet export")) s'
+                then setMemManage (MemManageReadCpz d) s
+                else setMemManage (MemManageError "reading user cards (cpz & ctr values) denied") s
+            _ -> setMemManage (MemManageError (unexpected "cpz ctr packet export")) s
         ReceivedAddCpzCtr r ->
-            let s' = unblock s
-            in case s.memoryManage of
+            case s.memoryManage of
             MemManageWriteWaiting ((OutgoingAddCpzCtr _)::ps) ->
                 if r == Done
-                then setMemManage (MemManageWrite ps) s'
-                else setMemManage (MemManageError "add card (cpz & ctrNonce) denied") s'
-            _ -> setMemManage (MemManageError (unexpected "add card (cpz & ctrNonce) response")) s'
+                then setMemManage (MemManageWrite ps) s
+                else setMemManage (MemManageError "add card (cpz & ctrNonce) denied") s
+            _ -> setMemManage (MemManageError (unexpected "add card (cpz & ctrNonce) response")) s
         ReceivedSetCtrValue r ->
-            let s' = unblock s
-            in case s.memoryManage of
+            case s.memoryManage of
             MemManageWriteWaiting ((OutgoingSetCtrValue _)::ps) ->
                 if r == Done
-                then setMemManage (MemManageWrite ps) s'
-                else setMemManage (MemManageError "set cryptographic counter denied") s'
-            _ -> setMemManage (MemManageError (unexpected "set cryptographic counter response")) s'
+                then setMemManage (MemManageWrite ps) s
+                else setMemManage (MemManageError "set cryptographic counter denied") s
+            _ -> setMemManage (MemManageError (unexpected "set cryptographic counter response")) s
         ReceivedGetCardCpz cpz ->
-            let s' = unblock s
-            in case s.memoryManage of
-            MemManageReadCpzWaiting (p,f,a,c,cs) -> setMemManage (MemManageReadSuccess (p,f,a,c,cs,cpz)) s'
-            _ -> s' -- can be meant for gui, we just ignore it
+            case s.memoryManage of
+            MemManageReadCpzWaiting (p,f,a,c,cs) -> setMemManage (MemManageReadSuccess (p,f,a,c,cs,cpz)) s
+            _ -> s -- can be meant for gui, we just ignore it
         ReceivedSetParameter x ->
             -- update s.common with value of bgSetParameter
             case s.bgSetParameter of
               Just (p, b) ->
                 let c = s.common
                     common' = { c | settingsInfo <- updateSettingsInfo p b s.common.settingsInfo }
-                in unblock {s | bgSetParameter <- Nothing, common <- common' }
-              Nothing     -> unblock s
+                in {s | bgSetParameter <- Nothing, common <- common' }
+              Nothing     -> s
         ReceivedGetParameter xm -> let x = Maybe.withDefault "\0" xm in
             case s.bgGetParameter of
-              []      -> unblock s
+              []      -> s
               (p::ps) ->
                 let b = Maybe.withDefault 0 <| head (stringToInts x)
                     c = s.common
                     common' = { c | settingsInfo <- updateSettingsInfo p b s.common.settingsInfo }
-                in unblock {s | bgGetParameter <- ps, common <- common' }
+                in {s | bgGetParameter <- ps, common <- common' }
         x -> appendToLog
                 ("Error: received unhandled packet " ++ toString x)
-                (unblock s)
+                s
 
 setMemManage : MemManageState -> BackgroundState -> BackgroundState
 setMemManage m s =
