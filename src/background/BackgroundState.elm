@@ -10,6 +10,7 @@ import CommonState exposing (..)
 import DevicePacket exposing (..)
 import DeviceFlash exposing (..)
 import Byte exposing (..)
+import String
 
 type alias BackgroundState = { deviceConnected    : Bool
                              , deviceVersion      : Maybe MpVersion
@@ -19,6 +20,7 @@ type alias BackgroundState = { deviceConnected    : Bool
                              , extRequest         : ExtensionRequest
                              , mediaImport        : MediaImport
                              , memoryManage       : MemManageState
+                             , bgGetStringCmd   : List Int
                              , bgSetParameter     : Maybe (Parameter, Byte)
                              , bgGetParameter     : List Parameter
                              , common             : CommonState
@@ -34,6 +36,7 @@ default = { deviceConnected    = False
           , extRequest         = NoRequest
           , mediaImport        = NoMediaImport
           , memoryManage       = NotManaging
+          , bgGetStringCmd   = []
           , bgSetParameter     = Nothing
           , bgGetParameter     = []
           , common             = Common.default
@@ -274,6 +277,10 @@ update action s =
             if not (mediaImportActive s)
             then setMedia (MediaImportRequested p) s
             else s
+        CommonAction (GetStringCmd mc) ->
+            case mc of
+                Nothing -> s
+                Just c  -> { s | bgGetStringCmd <- uniqAppend c s.bgGetStringCmd }
         CommonAction (SetParameter mpb) -> {s | bgSetParameter <- mpb}
         CommonAction (GetParameter mp) ->
             case mp of
@@ -283,7 +290,7 @@ update action s =
         Interpret p -> interpret p s
         NoOp -> s
 
-uniqAppend : Parameter -> List Parameter -> List Parameter
+uniqAppend : a -> List a -> List a
 uniqAppend p ps = case ps of
     [] -> [p]
     (x::xs) -> case x == p of
@@ -296,6 +303,8 @@ interpret packet s =
             Just str -> appendToLog str {s | extRequest <- r}
             Nothing -> {s | extRequest <- r}
         unblock s = setBlockSetExtRequest False s
+        trunc0 s = String.filter (\x -> x /='\0')
+            (Maybe.withDefault s (head (String.split "\0" s)))
     in case packet of
         ReceivedGetLogin ml -> case ml of
             Just l ->
@@ -489,6 +498,18 @@ interpret packet s =
             case s.memoryManage of
             MemManageReadCpzWaiting (p,f,a,c,cs) -> setMemManage (MemManageReadSuccess (p,f,a,c,cs,cpz)) s
             _ -> s -- can be meant for gui, we just ignore it
+        ReceivedGetCardLogin xm -> case xm of
+            Nothing -> s
+            Just x  ->
+                let c = s.common
+                    common' = { c | strCmdInfo <- updateStringCmdInfo str_CardLogin (trunc0 x) s.common.strCmdInfo }
+                in { s | bgGetStringCmd <- drop 1 s.bgGetStringCmd, common <- common'}
+        ReceivedGetCardPassword xm -> case xm of
+            Nothing -> s
+            Just x  ->
+                let c = s.common
+                    common' = { c | strCmdInfo <- updateStringCmdInfo str_CardPassword (trunc0 x) s.common.strCmdInfo }
+                in { s | bgGetStringCmd <- drop 1 s.bgGetStringCmd, common <- common'}
         ReceivedSetParameter x ->
             -- update s.common with value of bgSetParameter
             case s.bgSetParameter of
