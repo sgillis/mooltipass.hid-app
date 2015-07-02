@@ -234,9 +234,11 @@ update action s =
         SetExtRequest d -> case d of
             ExtWantsToWrite c ->
                 if s.blockSetExtRequest
-                then appendToLog "Blocking SetExtRequest" s
+                then s
                 else setBlockSetExtRequest True {s | extRequest <- d}
-            _ -> {s | extRequest <- d}
+            _ -> if s.blockSetExtRequest
+                 then s
+                 else {s | extRequest <- d}
         SetMediaImport t -> setMedia t s
         SetWaitingForDevice b -> {s | waitingForDevice <- b}
         SetMemManage m -> setMemManage m s
@@ -357,7 +359,7 @@ interpret packet s =
                  ExtNeedsNewContext c ->
                      if r == Done
                      then setExtRequest (ExtWantsToWrite c)
-                     else setExtRequest ExtNotWritten
+                     else unblock <| setExtRequest ExtNotWritten
                  _ -> setExtRequest NoRequest
         ReceivedGetVersion v ->
                 appendToLog
