@@ -14,10 +14,8 @@ type alias CommonState =
     , log          : List String
     , importInfo   : ImportInfo
     , memoryInfo   : MemInfo
-    , getStringCmd : Maybe Int
     , setParameter : Maybe (Parameter, Byte)
     , getParameter : Maybe Parameter
-    , strCmdInfo   : StringCmdInfo
     , settingsInfo : SettingsInfo
     , forceUpdate  : Bool
     }
@@ -28,10 +26,8 @@ default =
     , log          = []
     , importInfo   = NoImport
     , memoryInfo   = NoMemInfo
-    , getStringCmd = Nothing
     , setParameter = Nothing
     , getParameter = Nothing
-    , strCmdInfo   = emptyStringCmdInfo
     , settingsInfo = emptySettingsInfo
     , forceUpdate  = True
     }
@@ -42,11 +38,6 @@ maxFavs = 14
 
 emptyFavorites : List Favorite
 emptyFavorites = repeat maxFavs Nothing
-
-{- String Commands -}
-type alias StringCmd = Int
-str_CardLogin    = 0
-str_CardPassword = 1
 
 {-| Set-able parameters. Only some of these will be exposed to the user -}
 type Parameter = UserInitKey
@@ -104,17 +95,6 @@ type MemInfo =
     | MemInfoUnknownCardAdd   Card
     | MemInfoUnknownCardError ByteArray
     | NoMemInfo
-
-type alias StringCmdInfo =
-    { cardLogin    : Maybe String
-    , cardPassword : Maybe String
-    }
-
-emptyStringCmdInfo = StringCmdInfo Nothing Nothing
-
-updateStringCmdInfo : StringCmd -> String -> StringCmdInfo -> StringCmdInfo
-updateStringCmdInfo cmd v s =
-    if (cmd == 0) then { s | cardLogin <- Just v } else { s | cardPassword <- Just v }
 
 type alias SettingsInfo =
     { keyboard    : Maybe Int
@@ -208,11 +188,9 @@ type CommonAction = SetLog (List String)
                   | StartMemManage
                   | SaveMemManage MemInfoData
                   | EndMemManage
-                  | GetStringCmd (Maybe Int)
                   | SetParameter (Maybe (Parameter, Byte))
                   | GetParameter (Maybe Parameter)
                   | CommonSettings SettingsInfo
-                  | CommonStrCmds StringCmdInfo
                   | CommonNoOp
 
 {-| Transform the state to a new state according to an action -}
@@ -230,17 +208,13 @@ update action s =
         StartMemManage      -> {s | memoryInfo <- MemInfoRequest}
         SaveMemManage d     -> {s | memoryInfo <- MemInfoSave d}
         EndMemManage        -> {s | memoryInfo <- NoMemInfo}
-        GetStringCmd mc     -> case mc of
-                                   Nothing -> {s | getStringCmd <- Nothing }
-                                   Just c  -> {s | getStringCmd <- Just c}
         SetParameter mpb    -> case mpb of
                                    Nothing -> { s | setParameter <- Nothing }
                                    Just pb -> {s | setParameter <- Just pb}
         GetParameter mp     -> case mp of
                                    Nothing -> {s | getParameter <- Nothing }
                                    Just p  -> {s | getParameter <- Just p}
-        CommonSettings settings -> {s | settingsInfo <- settings}
-        CommonStrCmds strCmds   -> {s | strCmdInfo <- strCmds }
+        CommonSettings settings   -> {s | settingsInfo <- settings}
         -- GetState just twiddles the forceUpdate bit to make the state seem
         -- changed. This is so we can dropRepeats on the state signal but force
         -- an update through if we need to (like when the GUI is newly opened

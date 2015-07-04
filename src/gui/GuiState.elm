@@ -35,15 +35,12 @@ type alias GuiState =
     , readMem        : Bool
     , unsavedMemInfo : MemInfo
     , chromeNotify   : Maybe (String, String)
-    , needStringCmds : List StringCmd
-    , getStringCmd   : Maybe StringCmd
     , needParameters : List Parameter
     , saveParameters : List (Parameter, Byte)
     , setParameter   : Maybe (Parameter, Byte)
     , getParameter   : Maybe Parameter
     , selections     : Dict.Dict Int Selection
     , stageParameters : Dict.Dict Int Byte
-    , stageStringCmds : Dict.Dict StringCmd Content
     , common         : CommonState
     }
 
@@ -55,9 +52,8 @@ type Action = ChangeTab Tab
             | SetReadMem Bool
             | SetUnsavedMem MemInfo
             | AddToUnsavedMem MemInfoData
-            | StageStringCmd StringCmd Content
-            | StageParameter Parameter Byte
-            | StageParameterIntField Parameter Int Int Content
+            | StageParameter (Parameter, Byte)
+            | StageParameterField Parameter Int Int Content
             | ResetStageParameters
             | SaveStageParameters
             | CommonAction CommonAction
@@ -81,15 +77,12 @@ default =
     , readMem        = False
     , unsavedMemInfo = NoMemInfo
     , chromeNotify   = Nothing
-    , needStringCmds = []
-    , getStringCmd   = Nothing
     , needParameters = []
     , saveParameters = []
     , setParameter   = Nothing
     , getParameter   = Nothing
     , selections     = Dict.empty
     , stageParameters = Dict.empty
-    , stageStringCmds = Dict.empty
     , common         = Common.default
     }
 
@@ -113,8 +106,6 @@ update action s =
                 ("Error: trying to " ++ str ++ " without having memory data")
                 s
 
-        initStringCmds = [ str_CardLogin, str_CardPassword ]
-
         initParams : List Parameter
         initParams = [ KeyboardLayout, UserInterTimeout, LockTimeoutEnable, LockTimeout, OfflineMode, ScreenSaver, FlashScreen ]
     in case action of
@@ -127,8 +118,7 @@ update action s =
                                                        else s.unsavedMemInfo
                                 }
                            else s'
-                         Settings -> {s' | needStringCmds <- initStringCmds
-                                         , needParameters <- initParams }
+                         Settings -> {s' | needParameters <- initParams }
                          _ -> s'
         -- clicking the icon 7 times toggles developer tab visibility
         ClickIcon     -> if s.iconClicked >= 6
@@ -187,18 +177,16 @@ update action s =
                 }
             _        -> errorTryingTo "add to memory"
 
-        StageStringCmd cmd c ->
-          {s | stageStringCmds <- Dict.insert cmd c s.stageStringCmds}
-
-        StageParameter p b ->
+        StageParameter (p,b) ->
           {s | stageParameters <- Dict.insert (encodeParameter p) b s.stageParameters }
 
-        StageParameterIntField p lo hi c0 ->
+        StageParameterField p lo hi c0 ->
             let c = if c0.string == "" then Content "0" (Selection 0 1 Field.Forward) else c0
             in case toInt c.string of
               Ok i -> let b = clamp lo hi i
                           mpb = Just (p, b)
-                      in { s | selections <- Dict.insert (encodeParameter p) c.selection s.selections
+                      in { s | -- common <- updateCommon (SetParameter mpb)
+                               selections <- Dict.insert (encodeParameter p) c.selection s.selections
                              , stageParameters <- Dict.insert (encodeParameter p) b s.stageParameters }
               _    -> s
 
