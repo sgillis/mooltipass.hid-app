@@ -11,31 +11,33 @@ import DevicePacket exposing (..)
 import DeviceFlash exposing (..)
 import Byte exposing (..)
 
-type alias BackgroundState = { deviceConnected  : Bool
-                             , deviceVersion    : Maybe MpVersion
-                             , waitingForDevice : Bool
-                             , currentContext   : ByteString
-                             , extAwaitingPing  : Bool
-                             , extRequest       : ExtensionRequest
-                             , mediaImport      : MediaImport
-                             , memoryManage     : MemManageState
-                             , bgSetParameter   : Maybe (Parameter, Byte)
-                             , bgGetParameter   : List Parameter
-                             , common           : CommonState
+type alias BackgroundState = { deviceConnected    : Bool
+                             , deviceVersion      : Maybe MpVersion
+                             , waitingForDevice   : Bool
+                             , currentContext     : ByteString
+                             , extAwaitingPing    : Bool
+                             , extRequest         : ExtensionRequest
+                             , mediaImport        : MediaImport
+                             , memoryManage       : MemManageState
+                             , bgSetParameter     : Maybe (Parameter, Byte)
+                             , bgGetParameter     : List Parameter
+                             , common             : CommonState
+                             , blockSetExtRequest : Bool
                              }
 
 default : BackgroundState
-default = { deviceConnected  = False
-          , deviceVersion    = Nothing
-          , waitingForDevice = False
-          , currentContext   = ""
-          , extAwaitingPing  = False
-          , extRequest       = NoRequest
-          , mediaImport      = NoMediaImport
-          , memoryManage     = NotManaging
-          , bgSetParameter   = Nothing
-          , bgGetParameter   = []
-          , common           = Common.default
+default = { deviceConnected    = False
+          , deviceVersion      = Nothing
+          , waitingForDevice   = False
+          , currentContext     = ""
+          , extAwaitingPing    = False
+          , extRequest         = NoRequest
+          , mediaImport        = NoMediaImport
+          , memoryManage       = NotManaging
+          , bgSetParameter     = Nothing
+          , bgGetParameter     = []
+          , common             = Common.default
+          , blockSetExtRequest = False
           }
 
 type MemManageState =
@@ -229,7 +231,14 @@ update action s =
                {s | deviceConnected <-  False}
             else {s | deviceConnected <- True}
         SetExtAwaitingPing b -> {s | extAwaitingPing <- b}
-        SetExtRequest d -> {s | extRequest <- d}
+        SetExtRequest d -> case d of
+            ExtWantsToWrite c ->
+                if s.blockSetExtRequest
+                then s
+                else setBlockSetExtRequest True {s | extRequest <- d}
+            _ -> if s.blockSetExtRequest
+                 then s
+                 else {s | extRequest <- d}
         SetMediaImport t -> setMedia t s
         SetWaitingForDevice b -> {s | waitingForDevice <- b}
         SetMemManage m -> setMemManage m s
@@ -286,8 +295,9 @@ uniqAppend p ps = case ps of
 interpret : ReceivedPacket -> BackgroundState -> BackgroundState
 interpret packet s =
     let setExtRequest r = case incomingExtRequestToLog r of
-        Just str -> appendToLog str {s | extRequest <- r}
-        Nothing -> {s | extRequest <- r}
+            Just str -> appendToLog str {s | extRequest <- r}
+            Nothing -> {s | extRequest <- r}
+        unblock s = setBlockSetExtRequest False s
     in case packet of
         ReceivedGetLogin ml -> case ml of
             Just l ->
@@ -308,15 +318,15 @@ interpret packet s =
                  ExtWantsToWrite c ->
                      if r == Done
                      then setExtRequest (ExtNeedsToWritePassword { c - login })
-                     else setExtRequest ExtNotWritten
-                 _ -> setExtRequest NoRequest
+                     else unblock <| setExtRequest ExtNotWritten
+                 _ -> unblock <| setExtRequest NoRequest
         ReceivedSetPassword r ->
             case s.extRequest of
                  ExtNeedsToWritePassword c ->
                      if r == Done
-                     then setExtRequest (ExtWriteComplete { c - password })
-                     else setExtRequest ExtNotWritten
-                 _ -> setExtRequest NoRequest
+                     then unblock <| setExtRequest (ExtWriteComplete { c - password })
+                     else unblock <| setExtRequest ExtNotWritten
+                 _ -> unblock <| setExtRequest NoRequest
         ReceivedSetContext r ->
             case r of
                 ContextSet -> case s.extRequest of
@@ -349,7 +359,7 @@ interpret packet s =
                  ExtNeedsNewContext c ->
                      if r == Done
                      then setExtRequest (ExtWantsToWrite c)
-                     else setExtRequest ExtNotWritten
+                     else unblock <| setExtRequest ExtNotWritten
                  _ -> setExtRequest NoRequest
         ReceivedGetVersion v ->
                 appendToLog
@@ -385,7 +395,8 @@ interpret packet s =
                     (update (CommonAction (SetDeviceStatus ManageMode)) s)
             else setMemManage MemManageDenied
                     (update (CommonAction (SetDeviceStatus Unlocked)) s)
-        ReceivedGetStartingParent a -> case s.memoryManage of
+        ReceivedGetStartingParent a ->
+            case s.memoryManage of
             MemManageReadWaiting ([],nullAddress,nullAddress) [] ->
                 if a /= nullAddress then
                     setMemManage (MemManageRead ([], a, nullAddress) []) s
@@ -414,7 +425,8 @@ interpret packet s =
             if r == Done
             then update (CommonAction (SetDeviceStatus Unlocked)) s
             else setMemManage (MemManageError "device did not exit mem-manage when asked") s
-        ReceivedSetFavorite r -> case s.memoryManage of
+        ReceivedSetFavorite r ->
+            case s.memoryManage of
             MemManageWriteWaiting (p::ps) ->
                 if r == Done
                 then setMemManage (MemManageWrite ps) s
@@ -424,50 +436,59 @@ interpret packet s =
                 then setMemManage (MemManageRead ([], nullAddress, nullAddress) []) s
                 else setMemManage (MemManageError "write favorite denied") s
             _ -> setMemManage (MemManageError (unexpected "set favorite")) s
-        ReceivedWriteFlashNode r -> case s.memoryManage of
+        ReceivedWriteFlashNode r ->
+            case s.memoryManage of
             MemManageWriteWaiting (p::ps) ->
                 if r == Done
                 then setMemManage (MemManageWrite ps) s
                 else setMemManage (MemManageError "write node denied") s
             _ -> setMemManage (MemManageError (unexpected "write node")) s
-        ReceivedSetStartingParent r -> case s.memoryManage of
+        ReceivedSetStartingParent r ->
+            case s.memoryManage of
             MemManageWriteWaiting (p::ps) ->
                 if r == Done
                 then setMemManage (MemManageWrite ps) s
                 else setMemManage (MemManageError "set starting parent denied") s
             _ -> setMemManage (MemManageError (unexpected "set starting parent")) s
-        ReceivedGetFreeSlots addrs -> case s.memoryManage of
+        ReceivedGetFreeSlots addrs ->
+            case s.memoryManage of
             MemManageReadFreeSlotsWaiting (p,f,slots) -> case slots of
                         [] -> setMemManage (MemManageReadFreeSlots (p,f,addrs)) s
                         _ -> if length slots > 1000 || isEmpty addrs
                              then setMemManage (MemManageReadCtr (p,f,slots ++ (Maybe.withDefault [] <| tail addrs))) s
                              else setMemManage (MemManageReadFreeSlots (p,f,slots ++ (Maybe.withDefault [] <| tail addrs))) s
             _ -> setMemManage (MemManageError (unexpected "free slots")) s
-        ReceivedGetCtrValue ctr -> case s.memoryManage of
+        ReceivedGetCtrValue ctr ->
+            case s.memoryManage of
             MemManageReadCtrWaiting (p,f,a) -> setMemManage (MemManageReadCards (p,f,a,ctr)) s
             _ -> setMemManage (MemManageError (unexpected "get ctr value")) s
-        ReceivedCpzCtrPacketExport card -> case s.memoryManage of
+        ReceivedCpzCtrPacketExport card ->
+            case s.memoryManage of
             MemManageReadCardsWaiting (p,f,a,c,cards) -> setMemManage (MemManageReadCardsWaiting (p,f,a,c, card::cards)) s
             _ -> setMemManage (MemManageError (unexpected "cpz ctr packet export")) s
-        ReceivedGetCpzCtrValues r -> case s.memoryManage of
+        ReceivedGetCpzCtrValues r ->
+            case s.memoryManage of
             MemManageReadCardsWaiting d ->
                 if r == Done
                 then setMemManage (MemManageReadCpz d) s
                 else setMemManage (MemManageError "reading user cards (cpz & ctr values) denied") s
             _ -> setMemManage (MemManageError (unexpected "cpz ctr packet export")) s
-        ReceivedAddCpzCtr r -> case s.memoryManage of
+        ReceivedAddCpzCtr r ->
+            case s.memoryManage of
             MemManageWriteWaiting ((OutgoingAddCpzCtr _)::ps) ->
                 if r == Done
                 then setMemManage (MemManageWrite ps) s
                 else setMemManage (MemManageError "add card (cpz & ctrNonce) denied") s
             _ -> setMemManage (MemManageError (unexpected "add card (cpz & ctrNonce) response")) s
-        ReceivedSetCtrValue r -> case s.memoryManage of
+        ReceivedSetCtrValue r ->
+            case s.memoryManage of
             MemManageWriteWaiting ((OutgoingSetCtrValue _)::ps) ->
                 if r == Done
                 then setMemManage (MemManageWrite ps) s
                 else setMemManage (MemManageError "set cryptographic counter denied") s
             _ -> setMemManage (MemManageError (unexpected "set cryptographic counter response")) s
-        ReceivedGetCardCpz cpz -> case s.memoryManage of
+        ReceivedGetCardCpz cpz ->
+            case s.memoryManage of
             MemManageReadCpzWaiting (p,f,a,c,cs) -> setMemManage (MemManageReadSuccess (p,f,a,c,cs,cpz)) s
             _ -> s -- can be meant for gui, we just ignore it
         ReceivedSetParameter x ->
@@ -519,6 +540,9 @@ setMemManage m s =
             then setManage MemManageDenied
             else setManage <| MemManageError (unexpected "memory manage denied")
         _ -> setManage m
+
+setBlockSetExtRequest : Bool -> BackgroundState -> BackgroundState
+setBlockSetExtRequest b s = { s | blockSetExtRequest <- b }
 
 setMedia : MediaImport -> BackgroundState -> BackgroundState
 setMedia imp s =
