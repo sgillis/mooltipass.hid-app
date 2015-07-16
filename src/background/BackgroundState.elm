@@ -295,7 +295,11 @@ interpret packet s =
                 ExtNeedsLogin c ->
                     setExtRequest (ExtNeedsPassword {c | login = l})
                 _ -> setExtRequest NoRequest
-            Nothing -> setExtRequest ExtNoCredentials
+            Nothing ->
+                case s.extRequest of
+                    ExtNeedsLogin c ->
+                        setExtRequest (ExtNeedsPassword {c | login = ""})
+                    _ -> setExtRequest NoRequest
         ReceivedGetPassword mp -> case mp of
             Just p ->
                 case s.extRequest of
