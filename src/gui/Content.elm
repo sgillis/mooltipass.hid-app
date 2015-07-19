@@ -14,6 +14,7 @@ import LogTab exposing (..)
 import DeveloperTab exposing (..)
 import ManageTab exposing (..)
 import SettingsTab exposing (..)
+import ManualTab exposing (manualTab)
 import CommonState exposing (..)
 
 {-| Renders the window the window dimensions and application state to the
@@ -30,4 +31,5 @@ content (w,h) state =
         Manage    -> withBackground <| manageTab (w, h') state
         Settings  -> withBackground <| settingsTab (w, h') state.common.settingsInfo
                                          state.selections state.stageParameters
+        Manual    -> withBackground <| manualTab (w, h') state
         _         -> empty

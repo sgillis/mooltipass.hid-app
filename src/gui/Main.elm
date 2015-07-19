@@ -1,6 +1,7 @@
 module GUI where
 -- Elm standard library
 import Graphics.Element exposing (..)
+import Graphics.Input.Field exposing (noContent)
 import Signal exposing (..)
 import Time exposing (..)
 import Window
@@ -84,6 +85,15 @@ forBg s =
         (doGetParam, encGet)  = case s.getParameter of
             Just p  -> (True, getParam p)
             Nothing -> (False, emptyFromGuiMessage)
+        doSaveManualInputs = s.saveManualInputs
+        input = s.inputValues
+        input' = { input | manualContext <- noContent
+                         , manualUser <- noContent
+                         , manualPassword <- noContent }
+        toSaveInputs = ( s.inputValues.manualContext.string
+                       , s.inputValues.manualUser.string
+                       , s.inputValues.manualPassword.string
+                       )
     in if
         | mImportRequested -> case s.importMedia of
             RequestFile p ->
@@ -103,7 +113,11 @@ forBg s =
                {s | saveParameters <- List.drop 1 s.saveParameters, setParameter <- saveParam})
         | doNeedParam -> (needGet, NoOp,
                {s | needParameters <- List.drop 1 s.needParameters, getParameter <- needParam})
-
+        | doSaveManualInputs ->
+            ( FromGuiMessage.encode (SaveCredentials toSaveInputs)
+            , NoOp
+            , { s | saveManualInputs <- False, inputValues <- input' }
+            )
         | otherwise -> (e, NoOp, s)
 
 output : Signal (ToChromeMessage, FromGuiMessage, List Int, GuiState)
