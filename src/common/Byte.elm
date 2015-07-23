@@ -50,7 +50,7 @@ type alias ByteArray = List Byte
 toByteArray : Int -> List Int -> Result Error ByteArray
 toByteArray size ints =
     if | size > List.length ints -> Err "size is greater than data to convert to bytes"
-       | size <= 0 -> Err "Size is less than or equal to zero, while converting to bytes"
+       | size < 0 -> Err "Size is less than zero, while converting to bytes"
        | otherwise ->
          if List.foldr (\int b -> b && int >= 0 && int < 256) True
                 (List.take size ints)

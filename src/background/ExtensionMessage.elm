@@ -21,7 +21,10 @@ type alias FromExtensionMessage =
     }
 
 type alias ToExtensionMessage =
-    { deviceStatus : Maybe { connected : Bool, version : String }
+    { deviceStatus : Maybe { connected : Bool
+                           , version : String
+                           , state : String
+                           }
     , credentials  : Maybe { context  : String
                            , login    : String
                            , password : String
@@ -76,6 +79,13 @@ encode s =
                 { connected = s.common.deviceStatus == Unlocked
                 , version   = Maybe.withDefault "unknown"
                                 (Maybe.map (\v -> v.version) s.deviceVersion)
+                , state     = case s.common.deviceStatus of
+                    NotConnected -> "NotConnected"
+                    Unlocked -> "Unlocked"
+                    NoCard -> "NoCard"
+                    Locked -> "Locked"
+                    ManageMode -> "ManageMode"
+                    UnknownCard -> "UnknownCard"
                 }
             }, SetExtAwaitingPing False)
            | s.extRequest /= NoRequest -> case s.extRequest of

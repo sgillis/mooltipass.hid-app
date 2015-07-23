@@ -306,7 +306,7 @@ sel w kString act things selected =
         ptxt'    = flow right
             -- [spacer 5 1, Input.dropDown (\x -> send guiActions NoOp) things]
             -- [spacer 5 1, Input.dropDown (send kbChannel) things]
-            [spacer 5 1, Input.dropDown act things]
+            [spacer 5 1, Input.dropDown act things selected]
         ptxt     = container pw lh midLeft ptxt'
         lh       = heights.settingsLogin
         lh'      = toFloat lh
