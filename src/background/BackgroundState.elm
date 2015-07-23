@@ -183,6 +183,10 @@ type ExtensionRequest =
 
     | ExtNotWritten
 
+    | ExtWantsRandomNumber
+
+    | ExtRandomNumber         ByteString
+
     | NoRequest
 
 type SetCredentialsRequest =
@@ -215,6 +219,7 @@ incomingExtRequestToLog r = case r of
     ExtNotWritten       -> Just "access denied"
     ExtWriteComplete _  -> Just "credentials written"
     ExtCredentials   _  -> Just "credentials retrieved"
+    ExtRandomNumber  _  -> Just "sending random number"
     _ -> Nothing
 
 type BackgroundAction = SetHidConnected     Bool
@@ -558,6 +563,8 @@ interpret packet s =
                     c = s.common
                     common' = { c | settingsInfo <- updateSettingsInfo p b s.common.settingsInfo }
                 in {s | bgGetParameter <- ps, common <- common' }
+        ReceivedGetRandomNumber n ->
+            setExtRequest (ExtRandomNumber n)
         x -> appendToLog
                 ("Error: received unhandled packet " ++ toString x)
                 s

@@ -188,6 +188,7 @@ extNeedsToSend r = case r of
     ExtNeedsPassword _         -> True
     ExtWantsToWrite _          -> True
     ExtNeedsToWritePassword _  -> True
+    ExtWantsRandomNumber       -> True
     _                          -> False
 
 extRequestToPacket : String -> ExtensionRequest -> Maybe OutgoingPacket
@@ -209,6 +210,7 @@ extRequestToPacket cc extRequest =
         ExtNeedsToWritePassword {context, password} ->
             if cc == context then Just (OutgoingSetPassword password)
             else Just (OutgoingSetContext context)
+        ExtWantsRandomNumber -> Just OutgoingGetRandomNumber
         _ -> Nothing
 
 needToSetCreds : SetCredentialsRequest -> Bool
