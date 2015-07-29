@@ -53,11 +53,12 @@ tabs : GuiState -> Element
 tabs state =
     let disabled = disabledTabs state.common.deviceStatus
     in flow right <| [ tab Log      state.activeTab disabled
-                     -- disabled for alpha release
-                     --, navSpacer 5
+                     , navSpacer 5
                      , tab Settings state.activeTab disabled
                      , navSpacer 5
                      , tab Manage   state.activeTab disabled
+                     , navSpacer 5
+                     , tab Manual   state.activeTab disabled
                      ] ++ ( if state.devEnabled
                             then [ navSpacer 5
                                  , tab Developer state.activeTab disabled
@@ -75,6 +76,7 @@ tab t active disabled =
             Settings  -> "settings"
             Manage    -> "manage"
             Developer -> "developer"
+            Manual    -> "manual"
         img t =
             image (round (toFloat heights.tab * aspect))
                 heights.tab

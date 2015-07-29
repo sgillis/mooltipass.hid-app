@@ -18,6 +18,7 @@ type alias FromExtensionMessage =
                         , login    : String
                         , password : String
                         }
+    , getRandom : Maybe ()
     }
 
 type alias ToExtensionMessage =
@@ -31,6 +32,7 @@ type alias ToExtensionMessage =
                            }
     , noCredentials  : Maybe ()
     , updateComplete : Maybe ()
+    , random         : Maybe String
     }
 
 emptyToExtensionMessage =
@@ -38,15 +40,17 @@ emptyToExtensionMessage =
     , credentials    = Nothing
     , noCredentials  = Nothing
     , updateComplete = Nothing
+    , random         = Nothing
     }
 
 decode : FromExtensionMessage -> BackgroundAction
 decode message =
-    let decode' {ping, getInputs, update} =
+    let decode' {ping, getInputs, update, getRandom} =
         Maybe.oneOf
             [ Maybe.map (\_ -> SetExtAwaitingPing True) ping
             , Maybe.map (set ExtWantsCredentials) getInputs
             , Maybe.map (set ExtWantsToWrite) update
+            , Maybe.map (\_ -> SetExtRequest ExtWantsRandomNumber) getRandom
             ]
         set constructor d = SetExtRequest (constructor d)
         -- we do a bytestring conversion to check for errors but we just use
@@ -96,5 +100,6 @@ encode s =
                 ExtNoCredentials ->
                     ({e | noCredentials <- Just ()}, SetExtRequest NoRequest)
                 ExtNotWritten -> (e, SetExtRequest NoRequest)
+                ExtRandomNumber n -> ({e | random <- Just n}, SetExtRequest NoRequest)
                 _ -> (e,NoOp)
            | otherwise -> (e, NoOp)

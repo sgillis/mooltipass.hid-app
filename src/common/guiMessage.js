@@ -17,6 +17,7 @@ var emptyFromGuiMessage =
     , saveMemManage    : null
     , setParameter     : null
     , getParameter     : null
+    , saveCredentials  : null
     };
 
 messageHasValue = function (message) {

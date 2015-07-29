@@ -11,19 +11,21 @@ import DevicePacket exposing (..)
 import DeviceFlash exposing (..)
 import Byte exposing (..)
 
-type alias BackgroundState = { deviceConnected    : Bool
-                             , deviceVersion      : Maybe MpVersion
-                             , waitingForDevice   : Bool
-                             , currentContext     : ByteString
-                             , extAwaitingPing    : Bool
-                             , extRequest         : ExtensionRequest
-                             , mediaImport        : MediaImport
-                             , memoryManage       : MemManageState
-                             , bgSetParameter     : Maybe (Parameter, Byte)
-                             , bgGetParameter     : List Parameter
-                             , common             : CommonState
-                             , blockSetExtRequest : Bool
-                             }
+type alias BackgroundState =
+    { deviceConnected    : Bool
+    , deviceVersion      : Maybe MpVersion
+    , waitingForDevice   : Bool
+    , currentContext     : ByteString
+    , extAwaitingPing    : Bool
+    , extRequest         : ExtensionRequest
+    , mediaImport        : MediaImport
+    , memoryManage       : MemManageState
+    , bgSetParameter     : Maybe (Parameter, Byte)
+    , bgGetParameter     : List Parameter
+    , common             : CommonState
+    , blockSetExtRequest : Bool
+    , setCredentials     : SetCredentialsRequest
+    }
 
 default : BackgroundState
 default = { deviceConnected    = False
@@ -38,6 +40,7 @@ default = { deviceConnected    = False
           , bgGetParameter     = []
           , common             = Common.default
           , blockSetExtRequest = False
+          , setCredentials     = SetCredentialsDone
           }
 
 type MemManageState =
@@ -180,7 +183,25 @@ type ExtensionRequest =
 
     | ExtNotWritten
 
+    | ExtWantsRandomNumber
+
+    | ExtRandomNumber         ByteString
+
     | NoRequest
+
+type SetCredentialsRequest =
+      SetContext    { context  : ByteString
+                    , login    : ByteString
+                    , password : ByteString
+                    }
+    | WriteContext  { context : ByteString
+                    , login    : ByteString
+                    , password : ByteString
+                    }
+    | WritePassword { context  : ByteString
+                    , password : ByteString
+                    }
+    | SetCredentialsDone
 
 outgoingExtRequestToLog : ExtensionRequest -> Maybe String
 outgoingExtRequestToLog r = case r of
@@ -198,6 +219,7 @@ incomingExtRequestToLog r = case r of
     ExtNotWritten       -> Just "access denied"
     ExtWriteComplete _  -> Just "credentials written"
     ExtCredentials   _  -> Just "credentials retrieved"
+    ExtRandomNumber  _  -> Just "sending random number"
     _ -> Nothing
 
 type BackgroundAction = SetHidConnected     Bool
@@ -281,6 +303,12 @@ update action s =
             case mp of
                 Nothing -> s
                 Just p  -> { s | bgGetParameter <- uniqAppend p s.bgGetParameter }
+        CommonAction (SaveCredentials (c, l, p)) ->
+            let setCreds = SetContext { context = c
+                                      , login = l
+                                      , password = p
+                                      }
+            in { s | setCredentials <- setCreds}
         CommonAction a -> {s | common <- updateCommon a}
         Interpret p -> interpret p s
         NoOp -> s
@@ -317,23 +345,36 @@ interpret packet s =
                     setExtRequest (ExtCredentials {c | password = p})
                 _ -> setExtRequest NoRequest
             Nothing -> setExtRequest ExtNoCredentials
-        ReceivedSetLogin r ->
-            case s.extRequest of
-                 ExtWantsToWrite c ->
-                     if r == Done
-                     then setExtRequest (ExtNeedsToWritePassword { c - login })
-                     else unblock <| setExtRequest ExtNotWritten
-                 _ -> unblock <| setExtRequest NoRequest
-        ReceivedSetPassword r ->
-            case s.extRequest of
+        ReceivedSetLogin r -> case s.setCredentials of
+            SetContext c ->
+                let c' = { c - login }
+                in if r == Done
+                   then { s | setCredentials <- WritePassword c' }
+                   else appendToLog "Error while adding credentials"
+                        { s | setCredentials <- SetCredentialsDone }
+            _ -> case s.extRequest of
+                ExtWantsToWrite c ->
+                    if r == Done
+                    then setExtRequest (ExtNeedsToWritePassword { c - login })
+                    else unblock <| setExtRequest ExtNotWritten
+                _ -> unblock <| setExtRequest NoRequest
+        ReceivedSetPassword r -> case s.setCredentials of
+            WritePassword _ ->
+                if r == Done
+                then { s | setCredentials <- SetCredentialsDone }
+                else appendToLog "Error while adding credentials"
+                     { s | setCredentials <- SetCredentialsDone }
+            _ -> case s.extRequest of
                  ExtNeedsToWritePassword c ->
                      if r == Done
                      then unblock <| setExtRequest (ExtWriteComplete { c - password })
                      else unblock <| setExtRequest ExtNotWritten
                  _ -> unblock <| setExtRequest NoRequest
-        ReceivedSetContext r ->
-            case r of
-                ContextSet -> case s.extRequest of
+        ReceivedSetContext r -> case r of
+            ContextSet -> case s.setCredentials of
+                SetContext c -> { s | currentContext <- c.context }
+                WritePassword c -> { s | currentContext <- c.context }
+                _ -> case s.extRequest of
                     ExtWantsCredentials c ->
                         {s | currentContext <- c.context
                            , extRequest <- ExtNeedsLogin c}
@@ -346,7 +387,13 @@ interpret packet s =
                     -- this fall-through would be: we have no idea what
                     -- context we set so we just keep the original state
                     _ -> s
-                UnknownContext -> case s.extRequest of
+            UnknownContext -> case s.setCredentials of
+                SetContext c ->
+                    { s | setCredentials <- WriteContext c }
+                WritePassword c ->
+                    appendToLog "Error while adding credentials"
+                    { s | setCredentials <- SetCredentialsDone }
+                _ -> case s.extRequest of
                     ExtWantsToWrite c ->
                         {s | extRequest <- ExtNeedsNewContext c}
                     ExtWantsCredentials _ ->
@@ -356,10 +403,15 @@ interpret packet s =
                     ExtNeedsToWritePassword _ ->
                         {s | extRequest <- ExtNotWritten}
                     _ -> s
-                NoCardForContext ->
-                    update (CommonAction (SetDeviceStatus NoCard)) s
-        ReceivedAddContext r ->
-            case s.extRequest of
+            NoCardForContext ->
+                update (CommonAction (SetDeviceStatus NoCard)) s
+        ReceivedAddContext r -> case s.setCredentials of
+            WriteContext c ->
+                if r == Done
+                then {s | setCredentials <- SetContext c}
+                else appendToLog "Error while adding credentials"
+                     {s | setCredentials <- SetCredentialsDone}
+            _ -> case s.extRequest of
                  ExtNeedsNewContext c ->
                      if r == Done
                      then setExtRequest (ExtWantsToWrite c)
@@ -511,6 +563,8 @@ interpret packet s =
                     c = s.common
                     common' = { c | settingsInfo <- updateSettingsInfo p b s.common.settingsInfo }
                 in {s | bgGetParameter <- ps, common <- common' }
+        ReceivedGetRandomNumber n ->
+            setExtRequest (ExtRandomNumber n)
         x -> appendToLog
                 ("Error: received unhandled packet " ++ toString x)
                 s

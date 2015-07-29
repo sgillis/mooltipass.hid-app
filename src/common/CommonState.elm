@@ -191,6 +191,7 @@ type CommonAction = SetLog (List String)
                   | SetParameter (Maybe (Parameter, Byte))
                   | GetParameter (Maybe Parameter)
                   | CommonSettings SettingsInfo
+                  | SaveCredentials (String, String, String)
                   | CommonNoOp
 
 {-| Transform the state to a new state according to an action -}
