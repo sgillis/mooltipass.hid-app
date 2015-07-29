@@ -3,6 +3,7 @@ module BackgroundState where
 -- Elm standard library
 import Maybe
 import List exposing (..)
+import String
 
 -- local source
 import CommonState as Common
@@ -255,9 +256,14 @@ update action s =
         SetExtAwaitingPing b -> {s | extAwaitingPing <- b}
         SetExtRequest d -> case d of
             ExtWantsToWrite c ->
-                if s.blockSetExtRequest
-                then s
-                else setBlockSetExtRequest True {s | extRequest <- d}
+                let (trimmed, p') = trimPassword c.password
+                    c' = { c | password <- p' }
+                    s' = setBlockSetExtRequest True {s | extRequest <- ExtWantsToWrite c'}
+                in if s.blockSetExtRequest
+                   then s
+                   else if trimmed
+                        then appendToLog "Password trimmed to 31 chars" s'
+                        else s'
             _ -> if s.blockSetExtRequest
                  then s
                  else {s | extRequest <- d}
@@ -304,11 +310,15 @@ update action s =
                 Nothing -> s
                 Just p  -> { s | bgGetParameter <- uniqAppend p s.bgGetParameter }
         CommonAction (SaveCredentials (c, l, p)) ->
-            let setCreds = SetContext { context = c
-                                      , login = l
-                                      , password = p
-                                      }
-            in { s | setCredentials <- setCreds}
+            let (trimmed, p') = trimPassword p
+                setCreds      = SetContext { context = c
+                                           , login = l
+                                           , password = p'
+                                           }
+                s'            = { s | setCredentials <- setCreds }
+            in if trimmed
+               then appendToLog ("Password trimmed to 31 chars ") s'
+               else s'
         CommonAction a -> {s | common <- updateCommon a}
         Interpret p -> interpret p s
         NoOp -> s
@@ -639,3 +649,8 @@ appendToLog' str = CommonAction (AppendToLog str)
 appendToLog str state = update (appendToLog' str) state
 
 unexpected str = "Received unexpected " ++ str ++ " from device"
+
+trimPassword : ByteString -> (Bool, ByteString)
+trimPassword p =
+    let p' = String.left 31 p
+    in (p' /= p, p')
