@@ -150,17 +150,27 @@ mediaImportActive s = case s.mediaImport of
     _                  -> True
 
 type ExtensionRequest =
-      ExtWantsCredentials     { context : ByteString }
-
-    | ExtNeedsLogin           { context : ByteString }
-
-    | ExtNeedsPassword        { context : ByteString
-                              , login   : ByteString
+      ExtWantsCredentials     { context   : ByteString
+                              , domain    : ByteString
+                              , subdomain : Maybe ByteString
                               }
 
-    | ExtCredentials          { context  : ByteString
-                              , login    : ByteString
-                              , password : ByteString
+    | ExtNeedsLogin           { context   : ByteString
+                              , domain    : ByteString
+                              , subdomain : Maybe ByteString
+                              }
+
+    | ExtNeedsPassword        { context   : ByteString
+                              , domain    : ByteString
+                              , subdomain : Maybe ByteString
+                              , login     : ByteString
+                              }
+
+    | ExtCredentials          { context   : ByteString
+                              , login     : ByteString
+                              , password  : ByteString
+                              , domain    : ByteString
+                              , subdomain : Maybe ByteString
                               }
 
     | ExtNoCredentials
@@ -396,8 +406,11 @@ interpret packet s =
                 _ -> case s.extRequest of
                     ExtWantsToWrite c ->
                         {s | extRequest <- ExtNeedsNewContext c}
-                    ExtWantsCredentials _ ->
-                        {s | extRequest <- ExtNoCredentials}
+                    ExtWantsCredentials c ->
+                        let c' = {c | subdomain <- Nothing}
+                        in case c.subdomain of
+                            Nothing -> {s | extRequest <- ExtNoCredentials}
+                            Just _ -> {s | extRequest <- ExtWantsCredentials c'}
                     ExtNeedsPassword _ ->
                         {s | extRequest <- ExtNoCredentials}
                     ExtNeedsToWritePassword _ ->

@@ -196,8 +196,10 @@ extRequestToPacket cc extRequest =
     case extRequest of
         ExtNeedsNewContext {context, login, password} ->
             Just (OutgoingAddContext context)
-        ExtWantsCredentials {context} ->
-            Just (OutgoingSetContext context)
+        ExtWantsCredentials {context, domain, subdomain} ->
+            case subdomain of
+                Nothing -> Just (OutgoingSetContext domain)
+                Just sub -> Just (OutgoingSetContext (sub ++ "." ++ domain))
         ExtNeedsLogin {context} ->
             if cc == context then Just OutgoingGetLogin
             else Just (OutgoingSetContext context)

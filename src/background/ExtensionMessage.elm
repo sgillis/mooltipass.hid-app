@@ -13,7 +13,10 @@ import Util exposing (..)
 
 type alias FromExtensionMessage =
     { ping      : Maybe ()
-    , getInputs : Maybe { context : String }
+    , getInputs : Maybe { context : String
+                        , domain : String
+                        , subdomain : Maybe String
+                        }
     , update    : Maybe { context  : String
                         , login    : String
                         , password : String
@@ -26,9 +29,11 @@ type alias ToExtensionMessage =
                            , version : String
                            , state : String
                            }
-    , credentials  : Maybe { context  : String
-                           , login    : String
-                           , password : String
+    , credentials  : Maybe { context   : String
+                           , login     : String
+                           , password  : String
+                           , domain    : String
+                           , subdomain : Maybe String
                            }
     , noCredentials  : Maybe ()
     , updateComplete : Maybe ()
