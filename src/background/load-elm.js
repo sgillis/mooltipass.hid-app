@@ -40,6 +40,9 @@ elm.ports.toDevice.subscribe(function(message) {
     if (message.connect !== null) {
         device.connect();
     } else if (message.sendCommand !== null) {
+        if (message.sendCommand[1] != 185){
+            console.log(message);
+        }
         sendMsg(message.sendCommand);
     }
 });
@@ -99,8 +102,15 @@ deviceSendToElm = function (message) {
             messageWithNulls[prop] = emptyFromDeviceMessage[prop];
         }
     }
+    if (message.receiveCommand){
+        console.log(message);
+    }
     elm.ports.fromDevice.send(messageWithNulls);
 };
+
+elm.ports.debug.subscribe(function(message){
+    console.log(message);
+});
 
 extensionSendToElm = function (message) {
     var messageWithNulls = {};

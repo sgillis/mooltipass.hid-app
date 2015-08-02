@@ -37,6 +37,14 @@ port toChrome = map ChromeBgMessage.encode state
 
 port fromChrome : Signal FromChromeMessage
 
+port debug : Signal (Bool, Bool, String)
+port debug = dropRepeats <|
+    map (\s -> ( s.waitingForDevice
+               , s.blockSetExtRequest
+               , printExtensionRequest s.extRequest
+               )
+    ) state
+
 state : Signal BackgroundState
 state = map (\(_,_,s) -> s) output
 

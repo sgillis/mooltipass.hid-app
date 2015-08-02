@@ -200,6 +200,22 @@ type ExtensionRequest =
 
     | NoRequest
 
+printExtensionRequest : ExtensionRequest -> String
+printExtensionRequest e = case e of
+    ExtWantsCredentials _ -> "ExtWantsCredentials"
+    ExtNeedsLogin _ -> "ExtNeedsLogin"
+    ExtNeedsPassword _ -> "ExtNeedsPassword"
+    ExtCredentials _ -> "ExtCredentials"
+    ExtNoCredentials -> "ExtNoCredentials"
+    ExtWantsToWrite _ -> "ExtWantsToWrite"
+    ExtNeedsNewContext _ -> "ExtNeedsNewContext"
+    ExtNeedsToWritePassword _ -> "ExtNeedsToWritePassword"
+    ExtWriteComplete _ -> "ExtWriteComplete"
+    ExtNotWritten -> "ExtNotWritten"
+    ExtWantsRandomNumber -> "ExtWantsRandomNumber"
+    ExtRandomNumber _ -> "ExtRandomNumber"
+    NoRequest -> "NoRequest"
+
 type SetCredentialsRequest =
       SetContext    { context  : ByteString
                     , login    : ByteString
@@ -347,7 +363,7 @@ interpret packet s =
             Nothing -> {s | extRequest <- r}
         unblock s = setBlockSetExtRequest False s
     in case packet of
-        ReceivedGetLogin ml -> case ml of
+        ReceivedGetLogin ml -> appendToLog "received login" <| case ml of
             Just l ->
                 case s.extRequest of
                 ExtNeedsLogin c ->
@@ -446,7 +462,8 @@ interpret packet s =
                         ++ v.version ++ " "
                         ++ toString v.flashMemSize
                         ++ "MBit")
-                {s | deviceVersion <- Just v}
+                {s | deviceVersion <- Just v
+                   , bgGetParameter <- uniqAppend UserCancel s.bgGetParameter }
         ReceivedImportMediaStart r ->
             case s.mediaImport of
                 MediaImportStartWaiting ps ->
@@ -585,9 +602,14 @@ interpret packet s =
                 let b = Maybe.withDefault 0 <| head (stringToInts x)
                     c = s.common
                     common' = { c | settingsInfo <- updateSettingsInfo p b s.common.settingsInfo }
-                in {s | bgGetParameter <- ps, common <- common' }
+                    setParam = case p == UserCancel && b == 0 of
+                        True -> Just (UserCancel, 1)
+                        False -> Nothing
+                in {s | bgGetParameter <- ps, common <- common'
+                      , bgSetParameter <- setParam}
         ReceivedGetRandomNumber n ->
             setExtRequest (ExtRandomNumber n)
+        ReceivedPleaseRetry -> appendToLog ("Please retry: " ++ toString s.waitingForDevice) s
         x -> appendToLog
                 ("Error: received unhandled packet " ++ toString x)
                 s

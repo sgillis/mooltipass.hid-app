@@ -53,6 +53,7 @@ decode message =
             ]
     in case Maybe.withDefault NoOp (decode' message) of
         NoOp -> []
+        Interpret ReceivedPleaseRetry -> []
         a -> [SetWaitingForDevice False, a]
 
 encode : BackgroundState -> (ToDeviceMessage, List BackgroundAction)

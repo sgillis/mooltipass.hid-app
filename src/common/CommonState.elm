@@ -51,6 +51,7 @@ type Parameter = UserInitKey
                | OfflineMode
                | ScreenSaver
                | FlashScreen
+               | UserCancel
 
 encodeParameter : Parameter -> Int
 encodeParameter p = case p of
@@ -65,6 +66,7 @@ encodeParameter p = case p of
     OfflineMode        -> 0x08
     ScreenSaver        -> 0x09
     FlashScreen        -> 0x0e
+    UserCancel         -> 0x0f
     _                  -> 0xFF
 
 decodeParameter : Int -> Parameter
@@ -80,6 +82,7 @@ decodeParameter i = case i of
     0x08 -> OfflineMode
     0x09 -> ScreenSaver
     0x0e -> FlashScreen
+    0x0f -> UserCancel
     _    -> KeyboardLayout
 
 

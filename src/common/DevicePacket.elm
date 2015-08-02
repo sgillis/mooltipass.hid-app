@@ -69,6 +69,8 @@ cmd_ADD_DATA_SERVICE    = 0xBF
 cmd_WRITE_32B_IN_DN     = 0xC0
 cmd_READ_32B_IN_DN      = 0xC1
 cmd_GET_CUR_CARD_CPZ    = 0xC2
+cmd_CANCEL_USER_REQUEST = 0xC3
+cmd_PLEASE_RETRY        = 0xC4
 cmd_READ_FLASH_NODE     = 0xC5
 cmd_WRITE_FLASH_NODE    = 0xC6
 cmd_GET_FAVORITE        = 0xC7
@@ -202,6 +204,7 @@ type ReceivedPacket =
     | ReceivedAddNewCard        ReturnCode
     | ReceivedGetFreeSlots      (List FlashAddress)
     | ReceivedGetCardCpz        ByteArray
+    | ReceivedPleaseRetry
 
 {-| Carries firmware version and flash memory size -}
 type alias MpVersion = { flashMemSize : Byte
@@ -434,5 +437,7 @@ fromInts ls = case ls of
                     | m == cmd_GET_CUR_CARD_CPZ ->
                         if size /= 8 then Err "Invalid data for GetCardCpz"
                         else Ok <| ReceivedGetCardCpz (take 8 payload)
+                    | m == cmd_PLEASE_RETRY ->
+                        Ok ReceivedPleaseRetry
                     | otherwise -> Err <| "Got unknown message: " ++ toString m
     _ -> Err "invalid data"
