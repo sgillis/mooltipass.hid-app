@@ -26,6 +26,7 @@ type alias BackgroundState =
     , common             : CommonState
     , blockSetExtRequest : Bool
     , setCredentials     : SetCredentialsRequest
+    , extRequestBuff     : List ExtensionRequest
     }
 
 default : BackgroundState
@@ -42,6 +43,7 @@ default = { deviceConnected    = False
           , common             = Common.default
           , blockSetExtRequest = False
           , setCredentials     = SetCredentialsDone
+          , extRequestBuff     = []
           }
 
 type MemManageState =
@@ -241,6 +243,7 @@ type BackgroundAction = SetHidConnected     Bool
                       | SetMemManage        MemManageState
                       | Interpret           ReceivedPacket
                       | CommonAction        CommonAction
+                      | CheckExtRequestBuff
                       | NoOp
 
 apply : List BackgroundAction -> BackgroundState -> BackgroundState
@@ -264,19 +267,21 @@ update action s =
                {s | deviceConnected <-  False}
             else {s | deviceConnected <- True}
         SetExtAwaitingPing b -> {s | extAwaitingPing <- b}
-        SetExtRequest d -> case d of
-            ExtWantsToWrite c ->
-                let (trimmed, p') = trimPassword c.password
-                    c' = { c | password <- p' }
-                    s' = setBlockSetExtRequest True {s | extRequest <- ExtWantsToWrite c'}
-                in if s.blockSetExtRequest
-                   then s
-                   else if trimmed
-                        then appendToLog "Password trimmed to 31 chars" s'
-                        else s'
-            _ -> if s.blockSetExtRequest
-                 then s
-                 else {s | extRequest <- d}
+        SetExtRequest d -> case s.extRequest of
+            NoRequest -> case d of
+                ExtWantsToWrite c ->
+                    let (trimmed, p') = trimPassword c.password
+                        c' = { c | password <- p' }
+                        s' = setBlockSetExtRequest True {s | extRequest <- ExtWantsToWrite c'}
+                    in if s.blockSetExtRequest
+                       then s
+                       else if trimmed
+                            then appendToLog "Password trimmed to 31 chars" s'
+                            else s'
+                _ -> if s.blockSetExtRequest
+                     then s
+                     else {s | extRequest <- d}
+            _ -> handleSetExtRequest s d
         SetMediaImport t -> setMedia t s
         SetWaitingForDevice b -> {s | waitingForDevice <- b}
         SetMemManage m -> setMemManage m s
@@ -331,6 +336,7 @@ update action s =
                else s'
         CommonAction a -> {s | common <- updateCommon a}
         Interpret p -> interpret p s
+        CheckExtRequestBuff -> checkExtRequestBuff s
         NoOp -> s
 
 uniqAppend : Parameter -> List Parameter -> List Parameter
@@ -667,3 +673,21 @@ trimPassword : ByteString -> (Bool, ByteString)
 trimPassword p =
     let p' = String.left 31 p
     in (p' /= p, p')
+
+handleSetExtRequest : BackgroundState -> ExtensionRequest -> BackgroundState
+handleSetExtRequest s d = case d of
+    ExtWantsCredentials _ -> addExtRequestToBuff s d
+    ExtWantsToWrite _ -> addExtRequestToBuff s d
+    ExtWantsRandomNumber -> addExtRequestToBuff s d
+    _ -> {s | extRequest <- d }
+
+addExtRequestToBuff : BackgroundState -> ExtensionRequest -> BackgroundState
+addExtRequestToBuff s d = {s | extRequestBuff <- append s.extRequestBuff [d]}
+
+checkExtRequestBuff : BackgroundState -> BackgroundState
+checkExtRequestBuff s = case s.extRequest of
+    NoRequest -> case head s.extRequestBuff of
+        Nothing -> s
+        Just d  -> {s | extRequest <- d
+                      , extRequestBuff <- drop 1 s.extRequestBuff}
+    _ -> s

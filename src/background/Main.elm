@@ -62,5 +62,5 @@ inputActions = mergeMany
     , map (\m -> [ChromeBgMessage.decode m]) fromChrome
     , map DeviceMessage.decode fromDevice
     , map (\m -> [DeviceMessage.decodeStatus m]) (dropRepeats deviceStatus)
-    , map (\_ -> []) (every second)
+    , map (\_ -> [CheckExtRequestBuff]) (every second)
     ]
