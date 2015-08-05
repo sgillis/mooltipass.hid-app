@@ -276,7 +276,9 @@ update action s =
                     in if s.blockSetExtRequest
                        then s
                        else if trimmed
-                            then appendToLog "Password trimmed to 31 chars" s'
+                            then appendToLog
+                                ("Password trimmed to 31 chars for " ++ c'.context)
+                                s'
                             else s'
                 _ -> if s.blockSetExtRequest
                      then s
