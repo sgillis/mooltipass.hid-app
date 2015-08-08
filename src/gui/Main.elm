@@ -21,6 +21,7 @@ import ChromeMessage
 import CommonState as Common
 import CommonState exposing (MemInfo(..), CommonAction(..))
 import DevicePacket exposing (..)
+import Util exposing (..)
 
 {-| Any state updates from the background are received through this port -}
 port fromBackground : Signal ToGuiMessage
@@ -90,7 +91,7 @@ forBg s =
         input' = { input | manualContext <- noContent
                          , manualUser <- noContent
                          , manualPassword <- noContent }
-        toSaveInputs = ( s.inputValues.manualContext.string
+        toSaveInputs = ( removeURLPrefixes s.inputValues.manualContext.string
                        , s.inputValues.manualUser.string
                        , s.inputValues.manualPassword.string
                        )
