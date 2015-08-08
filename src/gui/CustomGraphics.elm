@@ -113,3 +113,8 @@ button' aspect src msg str =
             <| layers
                 [img wDown hDown "hover", centeredText wDown hDown 10]
     in  customButton msg up hover down
+
+
+dropDown : (a -> Signal.Message) -> List (String, a) -> String -> Element
+dropDown =
+  Native.CustomGraphics.dropDown

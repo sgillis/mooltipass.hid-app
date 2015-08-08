@@ -15,7 +15,7 @@ PACKAGE_STAMPS   = $(patsubst src%, $(PACKAGE_NAME)%.dirstamp, $(DIRS))
 
 all: images elm js manifest html test
 
-dirs     : elm-stuff/.core-linked $(patsubst src%, build%/.dirstamp, $(DIRS))
+dirs     : elm-stuff/.dirstamp $(patsubst src%, build%/.dirstamp, $(DIRS))
 elm      : dirs build/background/elm-background.js build/gui/elm-gui.js
 js       : dirs $(patsubst src/%, build/%, $(JS_FILES))
 html     : dirs $(patsubst src/%, build/%, $(HTML_FILES))
@@ -29,17 +29,15 @@ build/manifest.json: src/manifest.json
 	mkdir $*
 	@touch $@
 
-elm-stuff/.core-linked: elm-stuff/.dirstamp
-	rm -rf elm-stuff/packages/elm-lang/core/1.1.1
-	ln -s $(PWD)/elm-core $(PWD)/elm-stuff/packages/elm-lang/core/1.1.1
-	@touch $@
-
 elm-stuff/.dirstamp:
 	elm-package install -y
 	@touch $@
 
 build/gui/elm-gui.js: $(GUI_ELM_FILES) $(COMMON_ELM_FILES)
 	elm-make $(COMMON_ELM_FILES) $(GUI_ELM_FILES) --output $@
+	# Load our own native CustomGraphics.js
+	sed -i.bak "s/\(\$$moduleName = \"CustomGraphics\",\)/\1 \$$Native\$$CustomGraphics = Elm.Native.CustomGraphics.make(_elm),/" $@
+	rm $@.bak
 
 build/background/elm-background.js: $(BG_ELM_FILES) $(COMMON_ELM_FILES)
 	elm-make $(COMMON_ELM_FILES) $(BG_ELM_FILES) --output $@
