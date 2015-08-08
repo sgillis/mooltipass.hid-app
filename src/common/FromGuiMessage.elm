@@ -16,6 +16,7 @@ type alias FromGuiMessage =
     , saveMemManage    : Maybe MemInfoData
     , setParameter     : Maybe (Maybe (Int, Byte))
     , getParameter     : Maybe (Maybe Int)
+    , saveCredentials  : Maybe (String, String, String)
     }
 
 emptyFromGuiMessage =
@@ -27,6 +28,7 @@ emptyFromGuiMessage =
     , saveMemManage    = Nothing
     , setParameter     = Nothing
     , getParameter     = Nothing
+    , saveCredentials  = Nothing
     }
 
 encode : CommonAction -> FromGuiMessage
@@ -41,6 +43,7 @@ encode action =
         SetParameter mpb   -> {e | setParameter <- Just
                                 (Maybe.map (\(p,b) -> (encodeParameter p, b)) mpb)} 
         GetParameter mp    -> {e | getParameter <- Just (Maybe.map encodeParameter mp)} 
+        SaveCredentials c  -> {e | saveCredentials <- (Just c)}
         _                  -> e
 
 decode :  FromGuiMessage -> CommonAction
@@ -55,5 +58,6 @@ decode msg =
             , Maybe.map SaveMemManage msg.saveMemManage
             , Maybe.map (\x -> SetParameter (Maybe.map (\(p,b) -> (decodeParameter p, b)) x)) msg.setParameter
             , Maybe.map (\x -> GetParameter (Maybe.map decodeParameter x)) msg.getParameter
+            , Maybe.map SaveCredentials msg.saveCredentials
             ]
     in Maybe.withDefault CommonNoOp decode'

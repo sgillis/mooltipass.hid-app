@@ -77,9 +77,17 @@ encode s =
         (getParam, outParam) = case (s.waitingForDevice, s.bgGetParameter) of
             (False, (p::_)) -> (True, OutgoingGetParameter p)
             _               -> (False, OutgoingDebug "DeviceMessage error in getParam")
+        (setCreds, mSetCredsCmd) =
+            case (s.waitingForDevice, needToSetCreds s.setCredentials) of
+                (False, True) -> (True, encodeSetCredentials s.currentContext
+                                                             s.setCredentials)
+                _ -> (False, Nothing)
     in if | not s.deviceConnected -> (connect, [])
           | setParam              -> sendCommand' outCmd []
           | getParam              -> sendCommand' outParam []
+          | setCreds              -> case mSetCredsCmd of
+              Nothing  -> (emptyToDeviceMessage, [])
+              Just cmd -> sendCommand' cmd []
           | extNeedsToSend' ->
               ({e | sendCommand <-
                     Maybe.map toInts
@@ -180,6 +188,7 @@ extNeedsToSend r = case r of
     ExtNeedsPassword _         -> True
     ExtWantsToWrite _          -> True
     ExtNeedsToWritePassword _  -> True
+    ExtWantsRandomNumber       -> True
     _                          -> False
 
 extRequestToPacket : String -> ExtensionRequest -> Maybe OutgoingPacket
@@ -187,8 +196,10 @@ extRequestToPacket cc extRequest =
     case extRequest of
         ExtNeedsNewContext {context, login, password} ->
             Just (OutgoingAddContext context)
-        ExtWantsCredentials {context} ->
-            Just (OutgoingSetContext context)
+        ExtWantsCredentials {context, domain, subdomain} ->
+            case subdomain of
+                Nothing -> Just (OutgoingSetContext domain)
+                Just sub -> Just (OutgoingSetContext (sub ++ "." ++ domain))
         ExtNeedsLogin {context} ->
             if cc == context then Just OutgoingGetLogin
             else Just (OutgoingSetContext context)
@@ -201,5 +212,22 @@ extRequestToPacket cc extRequest =
         ExtNeedsToWritePassword {context, password} ->
             if cc == context then Just (OutgoingSetPassword password)
             else Just (OutgoingSetContext context)
+        ExtWantsRandomNumber -> Just OutgoingGetRandomNumber
         _ -> Nothing
 
+needToSetCreds : SetCredentialsRequest -> Bool
+needToSetCreds r = case r of
+    SetCredentialsDone -> False
+    _                  -> True
+
+encodeSetCredentials : String -> SetCredentialsRequest -> Maybe OutgoingPacket
+encodeSetCredentials cc r = case r of
+    SetContext {context, login, password} ->
+        if cc == context then Just (OutgoingSetLogin login)
+        else Just (OutgoingSetContext context)
+    WriteContext {context, login, password} ->
+        Just (OutgoingAddContext context)
+    WritePassword {context, password} ->
+        if cc == context then Just (OutgoingSetPassword password)
+        else Just (OutgoingSetContext context)
+    SetCredentialsDone -> Nothing

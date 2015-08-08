@@ -17,7 +17,7 @@ import Byte exposing (..)
 import String exposing (toInt)
 import DevicePacket exposing (..)
 
-type Tab = Log | Settings | Manage | Developer
+type Tab = Log | Settings | Manage | Developer | Manual
 
 type ImportRequest =
       Requested
@@ -27,21 +27,23 @@ type ImportRequest =
 
 {-| The entire GUI state -}
 type alias GuiState =
-    { activeTab      : Tab
-    , iconClicked    : Int
-    , devEnabled     : Bool
-    , importMedia    : ImportRequest
-    , writeMem       : Bool
-    , readMem        : Bool
-    , unsavedMemInfo : MemInfo
-    , chromeNotify   : Maybe (String, String)
-    , needParameters : List Parameter
-    , saveParameters : List (Parameter, Byte)
-    , setParameter   : Maybe (Parameter, Byte)
-    , getParameter   : Maybe Parameter
-    , selections     : Dict.Dict Int Selection
-    , stageParameters : Dict.Dict Int Byte
-    , common         : CommonState
+    { activeTab        : Tab
+    , iconClicked      : Int
+    , devEnabled       : Bool
+    , importMedia      : ImportRequest
+    , writeMem         : Bool
+    , readMem          : Bool
+    , unsavedMemInfo   : MemInfo
+    , chromeNotify     : Maybe (String, String)
+    , needParameters   : List Parameter
+    , saveParameters   : List (Parameter, Byte)
+    , setParameter     : Maybe (Parameter, Byte)
+    , getParameter     : Maybe Parameter
+    , selections       : Dict.Dict Int Selection
+    , stageParameters  : Dict.Dict Int Byte
+    , common           : CommonState
+    , inputValues      : InputValues
+    , saveManualInputs : Bool
     }
 
 {-| All actions that can be performed to change GUI state directly -}
@@ -64,26 +66,49 @@ type Action = ChangeTab Tab
             | RemoveCred (FlashAddress, FlashAddress)
             | Interpret ReceivedPacket
             | NotifyChrome (Maybe (String, String))
+            | UpdateInputField InputName Content
+            | SaveManualCredentials
             | NoOp
+
+{-| Names of all input fields that can be updated |-}
+type InputName = ManualContext
+               | ManualUser
+               | ManualPassword
+
+{-| Record to keep track of all values of input fields |-}
+type alias InputValues =
+    { manualContext  : Content
+    , manualUser     : Content
+    , manualPassword : Content
+    }
+
+defaultInputValues : InputValues
+defaultInputValues =
+    { manualContext  = Graphics.Input.Field.noContent
+    , manualUser     = Graphics.Input.Field.noContent
+    , manualPassword = Graphics.Input.Field.noContent
+    }
 
 {-| The initial state -}
 default : GuiState
 default =
-    { activeTab      = Log
-    , iconClicked    = 0
-    , devEnabled     = False
-    , importMedia    = NotRequested
-    , writeMem       = False
-    , readMem        = False
-    , unsavedMemInfo = NoMemInfo
-    , chromeNotify   = Nothing
-    , needParameters = []
-    , saveParameters = []
-    , setParameter   = Nothing
-    , getParameter   = Nothing
-    , selections     = Dict.empty
-    , stageParameters = Dict.empty
-    , common         = Common.default
+    { activeTab        = Log
+    , iconClicked      = 0
+    , devEnabled       = False
+    , importMedia      = NotRequested
+    , writeMem         = False
+    , readMem          = False
+    , unsavedMemInfo   = NoMemInfo
+    , chromeNotify     = Nothing
+    , needParameters   = []
+    , saveParameters   = []
+    , setParameter     = Nothing
+    , getParameter     = Nothing
+    , selections       = Dict.empty
+    , stageParameters  = Dict.empty
+    , common           = Common.default
+    , inputValues      = defaultInputValues
+    , saveManualInputs = False
     }
 
 {-| The non-selectable tabs according to the 'CommonState.DeviceStatus' -}
@@ -91,11 +116,11 @@ disabledTabs : Common.DeviceStatus -> List Tab
 disabledTabs s =
     case s of
         Common.Unlocked     -> []
-        Common.NotConnected -> [Settings, Manage, Developer]
-        Common.NoCard       -> [Manage]
-        Common.Locked       -> [Settings, Manage, Developer]
-        Common.ManageMode   -> []
-        Common.UnknownCard ->  [Settings]
+        Common.NotConnected -> [Settings, Manage, Developer, Manual]
+        Common.NoCard       -> [Manage, Manual]
+        Common.Locked       -> [Settings, Manage, Developer, Manual]
+        Common.ManageMode   -> [Manual]
+        Common.UnknownCard ->  [Settings, Manual]
 
 {-| Transform the state to a new state according to an action -}
 update : Action -> GuiState -> GuiState
@@ -232,6 +257,20 @@ update action s =
                 _ -> s
             ReceivedAddNewCard r -> if r == Done then {s | unsavedMemInfo <- MemInfoRequest} else s
         NotifyChrome m -> {s | chromeNotify <- m}
+        UpdateInputField name c -> case name of
+            ManualContext ->
+                let input = s.inputValues
+                    input' = { input | manualContext <- c }
+                in { s | inputValues <- input' }
+            ManualUser ->
+                let input = s.inputValues
+                    input' = { input | manualUser <- c }
+                in { s | inputValues <- input' }
+            ManualPassword ->
+                let input = s.inputValues
+                    input' = { input | manualPassword <- c }
+                in { s | inputValues <- input' }
+        SaveManualCredentials -> { s | saveManualInputs <- True }
         NoOp -> s
 
 

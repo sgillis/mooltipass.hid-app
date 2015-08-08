@@ -61,3 +61,6 @@ stageBool p b = case b of
 
 stageKeyboard : Int -> Message
 stageKeyboard kb = stageParameter KeyboardLayout kb
+
+updateInput : InputName -> Content -> Message
+updateInput name c = message guiActions.address (UpdateInputField name c)

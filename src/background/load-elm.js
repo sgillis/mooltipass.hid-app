@@ -7,6 +7,7 @@ var emptyFromDeviceMessage = { setHidConnected : null
 var emptyFromExtensionMessage  = { ping      : null
                                  , getInputs : null
                                  , update    : null
+                                 , getRandom : null
                                  };
 var guiOpen     = false;
 var extensionId = null;

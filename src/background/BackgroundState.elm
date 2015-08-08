@@ -3,6 +3,7 @@ module BackgroundState where
 -- Elm standard library
 import Maybe
 import List exposing (..)
+import String
 
 -- local source
 import CommonState as Common
@@ -11,19 +12,22 @@ import DevicePacket exposing (..)
 import DeviceFlash exposing (..)
 import Byte exposing (..)
 
-type alias BackgroundState = { deviceConnected    : Bool
-                             , deviceVersion      : Maybe MpVersion
-                             , waitingForDevice   : Bool
-                             , currentContext     : ByteString
-                             , extAwaitingPing    : Bool
-                             , extRequest         : ExtensionRequest
-                             , mediaImport        : MediaImport
-                             , memoryManage       : MemManageState
-                             , bgSetParameter     : Maybe (Parameter, Byte)
-                             , bgGetParameter     : List Parameter
-                             , common             : CommonState
-                             , blockSetExtRequest : Bool
-                             }
+type alias BackgroundState =
+    { deviceConnected    : Bool
+    , deviceVersion      : Maybe MpVersion
+    , waitingForDevice   : Bool
+    , currentContext     : ByteString
+    , extAwaitingPing    : Bool
+    , extRequest         : ExtensionRequest
+    , mediaImport        : MediaImport
+    , memoryManage       : MemManageState
+    , bgSetParameter     : Maybe (Parameter, Byte)
+    , bgGetParameter     : List Parameter
+    , common             : CommonState
+    , blockSetExtRequest : Bool
+    , setCredentials     : SetCredentialsRequest
+    , extRequestBuff     : List ExtensionRequest
+    }
 
 default : BackgroundState
 default = { deviceConnected    = False
@@ -38,6 +42,8 @@ default = { deviceConnected    = False
           , bgGetParameter     = []
           , common             = Common.default
           , blockSetExtRequest = False
+          , setCredentials     = SetCredentialsDone
+          , extRequestBuff     = []
           }
 
 type MemManageState =
@@ -147,17 +153,27 @@ mediaImportActive s = case s.mediaImport of
     _                  -> True
 
 type ExtensionRequest =
-      ExtWantsCredentials     { context : ByteString }
-
-    | ExtNeedsLogin           { context : ByteString }
-
-    | ExtNeedsPassword        { context : ByteString
-                              , login   : ByteString
+      ExtWantsCredentials     { context   : ByteString
+                              , domain    : ByteString
+                              , subdomain : Maybe ByteString
                               }
 
-    | ExtCredentials          { context  : ByteString
-                              , login    : ByteString
-                              , password : ByteString
+    | ExtNeedsLogin           { context   : ByteString
+                              , domain    : ByteString
+                              , subdomain : Maybe ByteString
+                              }
+
+    | ExtNeedsPassword        { context   : ByteString
+                              , domain    : ByteString
+                              , subdomain : Maybe ByteString
+                              , login     : ByteString
+                              }
+
+    | ExtCredentials          { context   : ByteString
+                              , login     : ByteString
+                              , password  : ByteString
+                              , domain    : ByteString
+                              , subdomain : Maybe ByteString
                               }
 
     | ExtNoCredentials
@@ -180,7 +196,25 @@ type ExtensionRequest =
 
     | ExtNotWritten
 
+    | ExtWantsRandomNumber
+
+    | ExtRandomNumber         ByteString
+
     | NoRequest
+
+type SetCredentialsRequest =
+      SetContext    { context  : ByteString
+                    , login    : ByteString
+                    , password : ByteString
+                    }
+    | WriteContext  { context : ByteString
+                    , login    : ByteString
+                    , password : ByteString
+                    }
+    | WritePassword { context  : ByteString
+                    , password : ByteString
+                    }
+    | SetCredentialsDone
 
 outgoingExtRequestToLog : ExtensionRequest -> Maybe String
 outgoingExtRequestToLog r = case r of
@@ -198,6 +232,7 @@ incomingExtRequestToLog r = case r of
     ExtNotWritten       -> Just "access denied"
     ExtWriteComplete _  -> Just "credentials written"
     ExtCredentials   _  -> Just "credentials retrieved"
+    ExtRandomNumber  _  -> Just "sending random number"
     _ -> Nothing
 
 type BackgroundAction = SetHidConnected     Bool
@@ -208,6 +243,7 @@ type BackgroundAction = SetHidConnected     Bool
                       | SetMemManage        MemManageState
                       | Interpret           ReceivedPacket
                       | CommonAction        CommonAction
+                      | CheckExtRequestBuff
                       | NoOp
 
 apply : List BackgroundAction -> BackgroundState -> BackgroundState
@@ -231,14 +267,23 @@ update action s =
                {s | deviceConnected <-  False}
             else {s | deviceConnected <- True}
         SetExtAwaitingPing b -> {s | extAwaitingPing <- b}
-        SetExtRequest d -> case d of
-            ExtWantsToWrite c ->
-                if s.blockSetExtRequest
-                then s
-                else setBlockSetExtRequest True {s | extRequest <- d}
-            _ -> if s.blockSetExtRequest
-                 then s
-                 else {s | extRequest <- d}
+        SetExtRequest d -> case s.extRequest of
+            NoRequest -> case d of
+                ExtWantsToWrite c ->
+                    let (trimmed, p') = trimPassword c.password
+                        c' = { c | password <- p' }
+                        s' = setBlockSetExtRequest True {s | extRequest <- ExtWantsToWrite c'}
+                    in if s.blockSetExtRequest
+                       then s
+                       else if trimmed
+                            then appendToLog
+                                ("Password trimmed to 31 chars for " ++ c'.context)
+                                s'
+                            else s'
+                _ -> if s.blockSetExtRequest
+                     then s
+                     else {s | extRequest <- d}
+            _ -> handleSetExtRequest s d
         SetMediaImport t -> setMedia t s
         SetWaitingForDevice b -> {s | waitingForDevice <- b}
         SetMemManage m -> setMemManage m s
@@ -281,8 +326,19 @@ update action s =
             case mp of
                 Nothing -> s
                 Just p  -> { s | bgGetParameter <- uniqAppend p s.bgGetParameter }
+        CommonAction (SaveCredentials (c, l, p)) ->
+            let (trimmed, p') = trimPassword p
+                setCreds      = SetContext { context = c
+                                           , login = l
+                                           , password = p'
+                                           }
+                s'            = { s | setCredentials <- setCreds }
+            in if trimmed
+               then appendToLog ("Password trimmed to 31 chars ") s'
+               else s'
         CommonAction a -> {s | common <- updateCommon a}
         Interpret p -> interpret p s
+        CheckExtRequestBuff -> checkExtRequestBuff s
         NoOp -> s
 
 uniqAppend : Parameter -> List Parameter -> List Parameter
@@ -317,23 +373,36 @@ interpret packet s =
                     setExtRequest (ExtCredentials {c | password = p})
                 _ -> setExtRequest NoRequest
             Nothing -> setExtRequest ExtNoCredentials
-        ReceivedSetLogin r ->
-            case s.extRequest of
-                 ExtWantsToWrite c ->
-                     if r == Done
-                     then setExtRequest (ExtNeedsToWritePassword { c - login })
-                     else unblock <| setExtRequest ExtNotWritten
-                 _ -> unblock <| setExtRequest NoRequest
-        ReceivedSetPassword r ->
-            case s.extRequest of
+        ReceivedSetLogin r -> case s.setCredentials of
+            SetContext c ->
+                let c' = { c - login }
+                in if r == Done
+                   then { s | setCredentials <- WritePassword c' }
+                   else appendToLog "Error while adding credentials"
+                        { s | setCredentials <- SetCredentialsDone }
+            _ -> case s.extRequest of
+                ExtWantsToWrite c ->
+                    if r == Done
+                    then setExtRequest (ExtNeedsToWritePassword { c - login })
+                    else unblock <| setExtRequest ExtNotWritten
+                _ -> unblock <| setExtRequest NoRequest
+        ReceivedSetPassword r -> case s.setCredentials of
+            WritePassword _ ->
+                if r == Done
+                then { s | setCredentials <- SetCredentialsDone }
+                else appendToLog "Error while adding credentials"
+                     { s | setCredentials <- SetCredentialsDone }
+            _ -> case s.extRequest of
                  ExtNeedsToWritePassword c ->
                      if r == Done
                      then unblock <| setExtRequest (ExtWriteComplete { c - password })
                      else unblock <| setExtRequest ExtNotWritten
                  _ -> unblock <| setExtRequest NoRequest
-        ReceivedSetContext r ->
-            case r of
-                ContextSet -> case s.extRequest of
+        ReceivedSetContext r -> case r of
+            ContextSet -> case s.setCredentials of
+                SetContext c -> { s | currentContext <- c.context }
+                WritePassword c -> { s | currentContext <- c.context }
+                _ -> case s.extRequest of
                     ExtWantsCredentials c ->
                         {s | currentContext <- c.context
                            , extRequest <- ExtNeedsLogin c}
@@ -346,20 +415,34 @@ interpret packet s =
                     -- this fall-through would be: we have no idea what
                     -- context we set so we just keep the original state
                     _ -> s
-                UnknownContext -> case s.extRequest of
+            UnknownContext -> case s.setCredentials of
+                SetContext c ->
+                    { s | setCredentials <- WriteContext c }
+                WritePassword c ->
+                    appendToLog "Error while adding credentials"
+                    { s | setCredentials <- SetCredentialsDone }
+                _ -> case s.extRequest of
                     ExtWantsToWrite c ->
                         {s | extRequest <- ExtNeedsNewContext c}
-                    ExtWantsCredentials _ ->
-                        {s | extRequest <- ExtNoCredentials}
+                    ExtWantsCredentials c ->
+                        let c' = {c | subdomain <- Nothing}
+                        in case c.subdomain of
+                            Nothing -> {s | extRequest <- ExtNoCredentials}
+                            Just _ -> {s | extRequest <- ExtWantsCredentials c'}
                     ExtNeedsPassword _ ->
                         {s | extRequest <- ExtNoCredentials}
                     ExtNeedsToWritePassword _ ->
                         {s | extRequest <- ExtNotWritten}
                     _ -> s
-                NoCardForContext ->
-                    update (CommonAction (SetDeviceStatus NoCard)) s
-        ReceivedAddContext r ->
-            case s.extRequest of
+            NoCardForContext ->
+                update (CommonAction (SetDeviceStatus NoCard)) s
+        ReceivedAddContext r -> case s.setCredentials of
+            WriteContext c ->
+                if r == Done
+                then {s | setCredentials <- SetContext c}
+                else appendToLog "Error while adding credentials"
+                     {s | setCredentials <- SetCredentialsDone}
+            _ -> case s.extRequest of
                  ExtNeedsNewContext c ->
                      if r == Done
                      then setExtRequest (ExtWantsToWrite c)
@@ -511,6 +594,8 @@ interpret packet s =
                     c = s.common
                     common' = { c | settingsInfo <- updateSettingsInfo p b s.common.settingsInfo }
                 in {s | bgGetParameter <- ps, common <- common' }
+        ReceivedGetRandomNumber n ->
+            setExtRequest (ExtRandomNumber n)
         x -> appendToLog
                 ("Error: received unhandled packet " ++ toString x)
                 s
@@ -585,3 +670,26 @@ appendToLog' str = CommonAction (AppendToLog str)
 appendToLog str state = update (appendToLog' str) state
 
 unexpected str = "Received unexpected " ++ str ++ " from device"
+
+trimPassword : ByteString -> (Bool, ByteString)
+trimPassword p =
+    let p' = String.left 31 p
+    in (p' /= p, p')
+
+handleSetExtRequest : BackgroundState -> ExtensionRequest -> BackgroundState
+handleSetExtRequest s d = case d of
+    ExtWantsCredentials _ -> addExtRequestToBuff s d
+    ExtWantsToWrite _ -> addExtRequestToBuff s d
+    ExtWantsRandomNumber -> addExtRequestToBuff s d
+    _ -> {s | extRequest <- d }
+
+addExtRequestToBuff : BackgroundState -> ExtensionRequest -> BackgroundState
+addExtRequestToBuff s d = {s | extRequestBuff <- append s.extRequestBuff [d]}
+
+checkExtRequestBuff : BackgroundState -> BackgroundState
+checkExtRequestBuff s = case s.extRequest of
+    NoRequest -> case head s.extRequestBuff of
+        Nothing -> s
+        Just d  -> {s | extRequest <- d
+                      , extRequestBuff <- drop 1 s.extRequestBuff}
+    _ -> s
