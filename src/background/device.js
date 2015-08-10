@@ -100,12 +100,14 @@ onDeviceFound = function (devices)
             elm.ports.deviceStatus.send(7);
             deviceSendToElm({appendToLog:"device found, connection made"});
         } else {
-            if (!sentSetupNotification){
-                deviceSendToElm({
-                    appendToLog: "If your mooltipass is connected, please look at the udev rule on the mooltipass.com/setup"
-                })
-                sentSetupNotification = true;
-            }
+            chrome.runtime.getPlatformInfo(function(platform){
+                if (!sentSetupNotification && platform.os == "linux"){
+                    deviceSendToElm({
+                        appendToLog: "If your mooltipass is connected, please look at the udev rule on the mooltipass.com/setup"
+                    })
+                    sentSetupNotification = true;
+                }
+            });
         }
         clearTimeout(device.timeoutId);
         device.connecting = false;
