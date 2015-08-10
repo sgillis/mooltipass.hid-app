@@ -1,6 +1,7 @@
 module Util where
 
 import List exposing (..)
+import String
 
 pairToList : (a,a) -> List a
 pairToList (x,y) = [x,y]
@@ -60,3 +61,13 @@ isOk : Result a b -> Bool
 isOk r = case r of
     Ok _ -> True
     _    -> False
+
+removeURLPrefixes : String -> String
+removeURLPrefixes s =
+    List.foldr removePrefix s ["www.", "http://", "https://"]
+
+removePrefix : String -> String -> String
+removePrefix prefix s =
+    case String.startsWith prefix s of
+        True -> String.dropLeft (String.length prefix) s
+        False -> s
