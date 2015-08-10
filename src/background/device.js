@@ -103,7 +103,7 @@ onDeviceFound = function (devices)
             chrome.runtime.getPlatformInfo(function(platform){
                 if (!sentSetupNotification && platform.os == "linux"){
                     deviceSendToElm({
-                        appendToLog: "If your mooltipass is connected, please look at the udev rule on the mooltipass.com/setup"
+                        appendToLog: "If your mooltipass is connected, please look at the udev rule on themooltipass.com/setup"
                     })
                     sentSetupNotification = true;
                 }
